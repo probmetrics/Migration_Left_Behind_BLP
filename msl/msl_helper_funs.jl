@@ -1,34 +1,30 @@
-function qfun(lnw, xbq, xbqc, ln1mlam, bw, blft, bitr)
-    # blft should be negative
-    dlnq = blft + bitr * lnw - bw * ln1mlam - xbqc
-    lnq_lft = blft + bw * lnw + bitr * lnw + xbq
-    lnq_mig = lnq_lft - dlnq
-    return (dlnq, lnq_mig, lnq_lft)
+function dqfun(lnw, ln1mlam, bw, blft, bitr)
+    # b2 = blft < 0
+    # b1 = bw > 0
+    # b3 = bitr < 0
+    dlnq = blft + bitr * lnw - bw * ln1mlam
+	lnq_mig = bw * lnw + bw * ln1mlam + xbq
+    return (dlnq, lnq_mig)
 end
 
 using StatsFuns:logaddexp
-function gamfun(lnw, dlnq, lnq_mig, xbl, ln1mlam, theta, psi)
-    Vlft = theta * dlnq - xbl
-    Vmig = psi * ln1mlam
-    gambar = logaddexp(Vlft, Vmig) + psi * lnw + theta * lnq_mig
+function gamfun(lnw, dlnq, lnq_mig, xbl, ln1mlam, theta)
+    Vlft = (1.0 - theta) * dlnq - xbl
+    Vmig = theta * ln1mlam
+    gambar = logaddexp(Vlft, Vmig) + theta * lnw + (1.0 - theta) * lnq_mig
     return gambar
 end
 
 using StatsFuns:logistic
-function leftbh_prob(theta, psi, ln1mlam, xbl, dlnq)
-    dVleft = -psi * ln1mlam - xbl + theta * dlnq
-    lftpr = logistic(dVleft)
+function leftbh_prob(theta, ln1mlam, xbl, dlnq)
+    dVlft = - theta * ln1mlam - xbl + (1.0 - theta) * dlnq
+    lftpr = logistic(dVlft)
     return lftpr
 end
 
-function Vloc(xbm, gambar, delta)
-    Vloc = gambar - xbm + delta
+function Vloc(alphaH, lnp, theta, xbm, gambar, delta)
+    Vloc = gambar - alphaH * theta * lnp - xbm + delta
     return Vloc
-end
-
-using StatsFuns:log1pexp
-function neglog1pexp(x::T) where T <: Real
-    return -log1pexp(x)
 end
 
 function gsel_range(g::Int, nalt::Int)
@@ -42,4 +38,15 @@ function locate_gidx(x::Int, ngvec::AbstractVector{Int})
         g += 1 - (x <= v)
     end
     return g
+end
+
+function emaxprob!(x::AbstractArray{T}) where T <: Real
+    n = length(x)
+    u = maximum(x)
+    s = zero(eltype(x))
+    @inbounds for i = 1:n
+        x[i] = exp(x[i] - u)
+		s += x[i]
+    end
+	x ./= s
 end
