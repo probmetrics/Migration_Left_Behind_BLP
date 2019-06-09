@@ -29,7 +29,7 @@ function data_prepare(df::AbstractDataFrame)
     XM = convert(Array{Float64, 2}, df[XMnames])
 
     # --- left-behind utility loss ---
-    cageysq = df[:cagey].^2
+    cageysq = df[df[:chosen] .== 1, :cagey].^2
     XLnames = [:cfemale, :nchild, :cagey]
     XL = [convert(Array{Float64, 2}, df[df[:chosen] .== 1, XLnames]) cageysq]
 
