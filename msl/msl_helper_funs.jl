@@ -35,9 +35,12 @@ function Vloc(alpha, lnp, theta, xbm, gambar, delta)
     return Vloc
 end
 
-function gsel_range(g::Int, nalt::Int)
-    ans = (1 + nalt * (g - 1)):(g * nalt)
-    return ans
+using Sobol
+using StatsFuns:norminvcdf
+function draw_shock(nsim::Integer; dims::Integer = 1, npcut::Integer = 53)
+    sbseq = SobolSeq(dims)
+    sbgrids = norminvcdf.(hcat([next!(sbseq) for i = 1:(nsim + npcut)]...)'[(npcut + 1):end, :])
+    return sbgrids
 end
 
 function locate_gidx(x::Int, ngvec::AbstractVector{Int})
@@ -57,4 +60,23 @@ function emaxprob!(x::AbstractArray{T}) where T <: Real
 		s += x[i]
     end
 	x ./= s
+end
+
+using Random, DataFrames
+using StatsBase:sample
+function boot_obsx(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol, 1}};
+                   nboot::Integer = 100, rng::AbstractRNG = MersenneTwister(0))
+    # vnames = [:caring_study, :parenting_att, :cedu_expect]
+    # joint sampling of vnames!
+    if typeof(vnames) == Symbol
+        vnames = [vnames]
+    end
+    all(v -> in(v, names(data)), vnames) || error("Not all vnames in data")
+
+    sel = prod(mapreduce(x -> .!ismissing.(data[x]), hcat, vnames), dims = 2)
+    selpos = (LinearIndices(sel))[findall(sel)]
+
+    bootsel = sample(rng, selpos, nboot; replace = true)
+    out = convert(Array{Float64, 2}, data[bootsel, vnames])
+    return out
 end

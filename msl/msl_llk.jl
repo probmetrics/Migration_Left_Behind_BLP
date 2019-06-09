@@ -1,6 +1,7 @@
 using StatsFuns:logistic, log1pexp
 function mig_leftbh_llk(parm, Delta, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
-						ZSHK, USHK, nind, nalt, nsim, ngvec::AbstractVector{Int})
+						ZSHK, USHK, wgt, nind, nalt, nsim,
+						ngvec::AbstractVector{Int})
 	##
 	## Delta:   nalt x g Matrix
 	## XT: 		nt x N Matrix
@@ -36,8 +37,8 @@ function mig_leftbh_llk(parm, Delta, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
 
 		llk += individual_llk(bw, blft, bitr, sigu, view(Delta, :, g), view(yl, ind_sel),
 							  view(ym, ind_sel), view(lnW, ind_sel), view(lnP, ind_sel),
-							  xbt[i], xbl[i], view(xbm, ind_sel), view(ln1mlam, ind_sel),
-							  xbq[i], view(zbr, sim_sel), view(ushk, sim_sel), nalt, nsim)
+							  Xbt[i], Xbl[i], view(Xbm, ind_sel), view(ln1mlam, ind_sel),
+							  Xbq[i], view(Zbr, sim_sel), view(USHK, sim_sel), nalt, nsim) * wgt[i]
 	end
 
 	return llk
