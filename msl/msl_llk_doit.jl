@@ -22,6 +22,7 @@ ym = Vector{Float64}(LeftbhData[:child_leftbh])
 ##
 
 MigBootData = CSV.read("$DTDIR/mig_leftbh_indboot.csv")
+
 # --- bootstrap random shock ---
 nsim = 10
 ndraw = nind * nsim
@@ -29,16 +30,17 @@ alpha = 0.12
 
 # bootstrap observed preference vars.
 DF_master = LeftbhData[LeftbhData[:chosen] .== 1,
-            [:hhtype, :year, :ID, :cline,
-            :child_leftbh, :highsch_f, :highsch_m]]
-znames = [:leftbh, :highsch_f, :highsch_m, :caring_study, :college_expect]
-ZDF = boot_obsx(MigBootData, znames, nboot = ndraw)
-rename!(ZDF, :leftbh => :child_leftbh)
-sort!(ZDF, (:child_leftbh, :highsch_f, :highsch_m))
+            [:year, :ID, :cline, :child_leftbh,
+            :highsch_f, :highsch_m]]
+rename!(DF_master, :child_leftbh => :leftbh)
+zshk_vars = [:caring_study, :college_expect]
+match_vars = [:leftbh, :highsch_f, :highsch_m]
 
-ZDF = join(DF_master, ZDF, on = [:child_leftbh, :highsch_f, :highsch_m])
-sort!(ZDF, (:hhtype, :year, :ID, :cline))
-ZSHK = ZSHK .- mean(ZSHK, dims = 1)
+Random.seed!(20190610);
+ZSHK = map(1:nrow(DF_master)) do i
+    bdf = filter(df -> df[match_vars] == DF_master[i, match_vars], MigBootData)
+    Matrix{Float64}(boot_df(bdf, zshk_vars; nboot = nsim))
+end
+ZSHK = vcat(ZSHK...)
 
-# udraws = halton(ndraw; dim = 2, normal = true)
-USHK = Vector{Float64}(draw_shock(ndraw; dims = 1)) # draw iid standard normal random shock
+USHK = dropdims(draw_shock(ndraw; dims = 1); dims = 2) # draw iid standard normal random shock
