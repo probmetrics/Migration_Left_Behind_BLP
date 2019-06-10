@@ -65,7 +65,7 @@ end
 using Random, DataFrames
 using StatsBase:sample
 function boot_df(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol, 1}};
-                   nboot::Integer = 100, rng::AbstractRNG = MersenneTwister(0))
+                   nboot::Integer = 100)
     # vnames = [:caring_study, :parenting_att, :cedu_expect]
     # joint sampling of vnames!
     if typeof(vnames) == Symbol
@@ -76,15 +76,17 @@ function boot_df(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol, 1}
     sel = prod(mapreduce(x -> .!ismissing.(data[x]), hcat, vnames), dims = 2)
     selpos = (LinearIndices(sel))[findall(sel)]
 
-    bootsel = sample(rng, selpos, nboot; replace = true)
+    bootsel = sample(selpos, nboot; replace = true)
 	out = data[bootsel, vnames]
     # out = convert(Array{Float64, 2}, data[bootsel, vnames])
     return out
 end
 
+using Random, DataFrames
+using StatsBase:sample
 function boot_df_by(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol, 1}};
 				 	byvars::Union{Nothing, Symbol, Array{Symbol, 1}} = nothing,
-                 	multiplier::Real = 1.0, rng::AbstractRNG = MersenneTwister())
+                 	multiplier::Real = 1.0)
     if typeof(vnames) == Symbol
         vnames = [vnames]
     end
@@ -96,7 +98,7 @@ function boot_df_by(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol,
 		sel = prod(mapreduce(x -> .!ismissing.(data[x]), hcat, vnames), dims = 2)
     	selpos = (LinearIndices(sel))[findall(sel)]
 
-		bootsel = sample(rng, selpos, nboot; replace = true)
+		bootsel = sample(selpos, nboot; replace = true)
         outdata = data[bootsel, vnames]
     else
         if typeof(byvars) == Symbol
@@ -111,7 +113,7 @@ function boot_df_by(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol,
 			sel = prod(mapreduce(x -> .!ismissing.(df[x]), hcat, vnames), dims = 2)
     		selpos = (LinearIndices(sel))[findall(sel)]
 
-            bootsel = sample(rng, selpos, nboot; replace = true)
+            bootsel = sample(selpos, nboot; replace = true)
             df[bootsel, vnames]
         end
     end
