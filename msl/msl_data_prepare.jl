@@ -46,7 +46,7 @@ function data_prepare(df::AbstractDataFrame)
     #       we have identification problem.
 
     XQnames = [:cfemale, :cagey, :nchild]
-    XQ = [ones(nind) convert(Array{Float64, 2}, df[df[:chosen] .== 1, XQnames])]
+    XQ = convert(Array{Float64, 2}, df[df[:chosen] .== 1, XQnames])
 
     return(lnDataShare, Delta_init, lnW, lnP, wgt, XT, XM, XL, XF, XQ, nalt, nind)
 end

@@ -44,3 +44,35 @@ end
 ZSHK = vcat(ZSHK...)
 
 USHK = dropdims(draw_shock(ndraw; dims = 1); dims = 2) # draw iid standard normal random shock
+
+##
+## 3. search for initial values
+##
+using GLM
+
+XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
+XFnames = [:treat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat, :lnmnw_city]
+XLnames = [:cfemale, :nchild, :cagey]
+lftvar = [XTnames; XFnames; XLnames]
+lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))))
+lft_fit = glm(lft_form, view(LeftbhData, yl .== 1, :),
+			  Binomial(), LogitLink(), wts = wgt)
+lft_init = coef(lft_fit)
+
+##
+## 4. Evaluate the likelihood
+##
+
+nparm = size(XT, 2) + size(XL, 2) + size(XM, 2) + size(XF, 2) + 3 +
+		size(XQ, 2) + size(ZSHK, 2) + 1
+xt_init = lft_init[1:6]
+xf_init = lft_init[7:12]
+xl_init = lft[13:end]
+xm_init = zeros(size(XM, 2))
+xq_init = zeros(size(XQ, 2))
+bw = 0.194
+blft = -0.148
+bitq = -0.167
+initval = [xt_init; xl_init; xm_init; 0; xf_init; blft; bw; bitr; xq_init; zeros(2); -1.5]
+mig_leftbh_llk(initval, Delta, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
+			   ZSHK, USHK, wgt, nind, nalt, nsim, ngvec)
