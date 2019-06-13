@@ -2,6 +2,8 @@ using FileIO, DataFrames, CSV, Statistics, StatsBase
 using SharedArrays, LinearAlgebra
 include("msl_helper_funs.jl")
 include("msl_data_prepare.jl")
+include("msl_llk.jl")
+
 DTDIR = "E:/NutStore/Research/mig_leftbh_enrollment"
 
 ##
@@ -11,9 +13,12 @@ DTDIR = "E:/NutStore/Research/mig_leftbh_enrollment"
 # LeftbhData = readcsv("$DTDIR/mig_leftbh_enroll_fit.csv")
 LeftbhData = CSV.read("$DTDIR/mig_leftbh_enroll_fit.csv"; type = Float64)
 LeftbhData[:cagey] = LeftbhData[:cagey] / 10
+LeftbhData[:cageysq] = LeftbhData[:cagey] .^ 2 / 100
+LeftbhData[:nchild_lnmw] = LeftbhData[:lnmnw_city].* LeftbhData[:nchild]
+LeftbhData[:nchild_lnhp] = LeftbhData[:lnhprice].* LeftbhData[:nchild]
 
 lnDataShare, Delta_init, lnW, lnP, wgt,
-XT, XM, XL, XF, XQ, nalt, nind = data_prepare(LeftbhData)
+XT, XM, XL, XF, XQ, nalt, nind, ngvec = data_prepare(LeftbhData)
 yl = Vector{Float64}(LeftbhData[:chosen])
 ym = Vector{Float64}(LeftbhData[:child_leftbh])
 
@@ -51,8 +56,9 @@ USHK = dropdims(draw_shock(ndraw; dims = 1); dims = 2) # draw iid standard norma
 using GLM
 
 XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
-XFnames = [:treat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat, :lnmnw_city]
-XLnames = [:cfemale, :nchild, :cagey]
+XFnames = [:treat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
+		   :lnmnw_city, :nchild_lnmw, :nchild_lnhp]
+XLnames = [:cfemale, :nchild, :cagey, :cageysq]
 lftvar = [XTnames; XFnames; XLnames]
 lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))))
 lft_fit = glm(lft_form, view(LeftbhData, yl .== 1, :),
@@ -66,13 +72,13 @@ lft_init = coef(lft_fit)
 nparm = size(XT, 2) + size(XL, 2) + size(XM, 2) + size(XF, 2) + 3 +
 		size(XQ, 2) + size(ZSHK, 2) + 1
 xt_init = lft_init[1:6]
-xf_init = lft_init[7:12]
-xl_init = lft[13:end]
+xf_init = lft_init[7:14]
+xl_init = lft_init[15:end]
 xm_init = zeros(size(XM, 2))
 xq_init = zeros(size(XQ, 2))
 bw = 0.194
 blft = -0.148
-bitq = -0.167
+bitr = -0.167
 initval = [xt_init; xl_init; xm_init; 0; xf_init; blft; bw; bitr; xq_init; zeros(2); -1.5]
-mig_leftbh_llk(initval, Delta, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
+mig_leftbh_llk(initval, Delta_init, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
 			   ZSHK, USHK, wgt, nind, nalt, nsim, ngvec)

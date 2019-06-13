@@ -1,7 +1,7 @@
 using StatsFuns:logistic, log1pexp
-function mig_leftbh_llk(parm, Delta, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
+function mig_leftbh_llk(parm, Delta, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
 						ZSHK, USHK, wgt, nind, nalt, nsim,
-						ngvec::AbstractVector{Int})
+						ngvec::AbstractVector{Int}; alpha = 0.12, xdim = 2)
 	##
 	## Delta:   nalt x g Matrix
 	## XT: 		nt x N Matrix
@@ -14,19 +14,18 @@ function mig_leftbh_llk(parm, Delta, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
 	## ngvec:	g Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
 
 	# --- key input vectors ---
-	theta = XT' * bt
-	broadcast!(logistic, theta, theta)
-	Xbl = XL' * bl
-	Xbq = XQ' * bq
+	Xbt = XT * bt
+	Xbl = XL * bl
+	Xbq = XQ * bq
 
-	Xbm = XM' * bm
-	ln1mlam = XF' * bf
+	Xbm = XM * bm
+	ln1mlam = XF * bf
 	broadcast!(log1pexp, ln1mlam, ln1mlam) #<-- [-ln(1-lam)]
 
-	Zbr = ZSHK' * bz
+	Zbr = ZSHK * bz
 
 	# --- begin the loop ---
 	llk = zero(eltype(parm))
@@ -35,8 +34,8 @@ function mig_leftbh_llk(parm, Delta, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
 		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 		g = locate_gidx(i, ngvec)
 
-		llk += individual_llk(bw, blft, bitr, sigu, view(Delta, :, g), view(yl, ind_sel),
-							  view(ym, ind_sel), view(lnW, ind_sel), view(lnP, ind_sel),
+		llk += individual_llk(bw, blft, bitr, sigu, alpha, view(Delta, :, g), view(YL, ind_sel),
+							  view(YM, ind_sel), view(lnW, ind_sel), view(lnP, ind_sel),
 							  Xbt[i], Xbl[i], view(Xbm, ind_sel), view(ln1mlam, ind_sel),
 							  Xbq[i], view(Zbr, sim_sel), view(USHK, sim_sel), nalt, nsim) * wgt[i]
 	end
@@ -46,7 +45,7 @@ end
 
 
 using StatsFuns:logistic
-function individual_llk(bw, blft, bitr, sigu, delta, yl, ym, lnw, lnp, xbt, xbl,
+function individual_llk(bw, blft, bitr, sigu, alpha, delta, yl, ym, lnw, lnp, xbt, xbl,
 						xbm, ln1mlam, xbq, zbr, ushk, nalt, nsim)
 	##
 	## delta: 		J x 1 Vector
@@ -87,12 +86,12 @@ function individual_llk(bw, blft, bitr, sigu, delta, yl, ym, lnw, lnp, xbt, xbl,
 			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta)
 
 			# --- location specific utility ---
-			loc_pr_js[j] = Vloc(xbm[j], gambar, delta[j])
+			loc_pr_js[j] = Vloc(alpha, lnp[j], theta, xbm[j], gambar, delta[j])
 
 		end
 		emaxprob!(loc_pr_js)
-		# llki .+= (loc_pr_js .* yl) .* lft_pr_js
-		llki += view(loc_pr_js, loc_sel) * view(lft_pr_js, loc_sel)
+		# llki += sum((loc_pr_js .* yl) .* lft_pr_js)
+		llki += view(loc_pr_js, loc_sel)[1] * view(lft_pr_js, loc_sel)[1]
 	end #<-- end of s loop
 
 	return -log(llki / nsim)
@@ -100,13 +99,13 @@ end
 
 
 using StatsFuns:logistic
-function unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK)
-	 nxt = size(XT, 1)
-	 nxl = size(XL, 1)
-	 nxm = size(XM, 1)
-	 nxf = size(XF, 1)
-	 nxq = size(XQ, 1)
-	 nzr = size(ZSHK, 1)
+function unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = 2)
+	 nxt = size(XT, xdim)
+	 nxl = size(XL, xdim)
+	 nxm = size(XM, xdim)
+	 nxf = size(XF, xdim)
+	 nxq = size(XQ, xdim)
+	 nzr = size(ZSHK, xdim)
 
 	 bt = parm[1:nxt]
 	 bl = parm[(nxt + 1):(nxt + nxl)]

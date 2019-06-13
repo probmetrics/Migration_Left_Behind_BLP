@@ -29,17 +29,14 @@ function data_prepare(df::AbstractDataFrame)
     XM = convert(Array{Float64, 2}, df[XMnames])
 
     # --- left-behind utility loss ---
-    cageysq = df[df[:chosen] .== 1, :cagey].^2
-    XLnames = [:cfemale, :nchild, :cagey]
-    XL = [convert(Array{Float64, 2}, df[df[:chosen] .== 1, XLnames]) cageysq]
+    XLnames = [:cfemale, :nchild, :cagey, :cageysq]
+    XL = convert(Array{Float64, 2}, df[df[:chosen] .== 1, XLnames])
 
     # --- fixed cost ---
     # NOTE: the most critical part of the model!!
-    nchild_lnmw = df[:lnmnw_city].* df[:nchild]
-    nchild_lnhp = df[:lnhprice].* df[:nchild]
     XFnames = [:treat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
-               :lnmnw_city]
-    XF = [ones(ndt) convert(Array{Float64, 2}, df[XFnames]) nchild_lnmw nchild_lnhp]
+               :lnmnw_city, :nchild_lnmw, :nchild_lnhp]
+    XF = [ones(ndt) convert(Array{Float64, 2}, df[XFnames])]
 
     # --- cognitive ability ---
     # TODO: how to incorporate regional eduation quality?
@@ -48,7 +45,7 @@ function data_prepare(df::AbstractDataFrame)
     XQnames = [:cfemale, :cagey, :nchild]
     XQ = convert(Array{Float64, 2}, df[df[:chosen] .== 1, XQnames])
 
-    return(lnDataShare, Delta_init, lnW, lnP, wgt, XT, XM, XL, XF, XQ, nalt, nind)
+    return(lnDataShare, Delta_init, lnW, lnP, wgt, XT, XM, XL, XF, XQ, nalt, nind, ngvec)
 end
 
 #=
