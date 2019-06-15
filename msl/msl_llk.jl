@@ -8,7 +8,7 @@ function mig_leftbh_llk(parm, Delta, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
 	## XL: 		nl x N Matrix
 	## XM: 		nm x (NJ) Matrix
 	## XF: 		nf x (NJ) Matrix
-	## XQ: 		nq x N Matrix
+	## XQ: 		nq x NJ Matrix
 	## ZSHK: 	nz x (NS) Matrix
 	## USHK:	NS Vector
 	## ngvec:	g Vector
@@ -19,11 +19,12 @@ function mig_leftbh_llk(parm, Delta, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
 	# --- key input vectors ---
 	Xbt = XT * bt
 	Xbl = XL * bl
-	Xbq = XQ * bq
 
 	Xbm = XM * bm
 	ln1mlam = XF * bf
 	broadcast!(log1pexp, ln1mlam, ln1mlam) #<-- [-ln(1-lam)]
+	dlnQ = blft .+ bitr * lnW + bw * ln1mlam
+	lnQ_mig = bw * lnW - bw * ln1mlam + XQ * bq
 
 	Zbr = ZSHK * bz
 
@@ -37,7 +38,8 @@ function mig_leftbh_llk(parm, Delta, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
 		llk += individual_llk(bw, blft, bitr, sigu, alpha, view(Delta, :, g), view(YL, ind_sel),
 							  view(YM, ind_sel), view(lnW, ind_sel), view(lnP, ind_sel),
 							  Xbt[i], Xbl[i], view(Xbm, ind_sel), view(ln1mlam, ind_sel),
-							  Xbq[i], view(Zbr, sim_sel), view(USHK, sim_sel), nalt, nsim) * wgt[i]
+							  view(dlnQ, ind_sel), view(lnQ_mig, ind_sel), view(Zbr, sim_sel),
+							  view(USHK, sim_sel), nalt, nsim) * wgt[i]
 	end
 
 	return llk
@@ -46,7 +48,7 @@ end
 
 using StatsFuns:logistic
 function individual_llk(bw, blft, bitr, sigu, alpha, delta, yl, ym, lnw, lnp, xbt, xbl,
-						xbm, ln1mlam, xbq, zbr, ushk, nalt, nsim)
+						xbm, ln1mlam, dlnq, lnq_mig, zbr, ushk, nalt, nsim)
 	##
 	## delta: 		J x 1 Vector
 	## lnw, lnp: 	J x 1 Vector
@@ -58,43 +60,38 @@ function individual_llk(bw, blft, bitr, sigu, alpha, delta, yl, ym, lnw, lnp, xb
 	## ushk:		S x 1 Vector
 	##
 
-	# --- calculate (dlnq, lnq_mig) ---
-	TT = eltype(bw)
-	dlnq = zeros(TT, nalt)
-	lnq_mig = zeros(TT, nalt)
-	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, bw, blft, bitr)
-
 	# --- setup containers ---
+	TT = eltype(bw)
 	unit = one(TT)
-	loc_sel = (yl .== unit)
-	lft_pr_js = zeros(TT, nalt)
-	loc_pr_js = zeros(TT, nalt)
-	# llki = zeros(TT, nalt)
 	llki = zero(TT)
 
 	# --- begin the loop ---
 	for s = 1:nsim
+		lftpr_s = zero(TT)
+		llks = zero(TT)
+		eVsums = zero(TT)
+
 		zrnd = zbr[s]
 		urnd = ushk[s]
 		for j = 1:nalt
 			# calculate lft_prob
 			theta = logistic(xbt + zrnd + sigu * urnd)
 			lft_pr_tmp = leftbh_prob(theta, ln1mlam[j], xbl, dlnq[j])
-			lft_pr_js[j] = lft_pr_tmp * ym[j] + (unit - ym[j]) * (unit - lft_pr_tmp)
+			lftpr_s += (lft_pr_tmp * ym[j] + (unit - ym[j]) * (unit - lft_pr_tmp)) * yl[j]
 
 			# calculate location prob
 			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta)
 
 			# --- location specific utility ---
-			loc_pr_js[j] = Vloc(alpha, lnp[j], theta, xbm[j], gambar, delta[j])
-
+			Vj = Vloc(alpha, lnp[j], theta, xbm[j], gambar, delta[j])
+			llks += Vj * yl[j]
+			eVsums += exp(Vj)
 		end
-		emaxprob!(loc_pr_js)
-		# llki += sum((loc_pr_js .* yl) .* lft_pr_js)
-		llki += view(loc_pr_js, loc_sel)[1] * view(lft_pr_js, loc_sel)[1]
+		llki += llks - log(eVsums) + log(lftpr_s)
+
 	end #<-- end of s loop
 
-	return -log(llki / nsim)
+	return -llki / nsim
 end
 
 

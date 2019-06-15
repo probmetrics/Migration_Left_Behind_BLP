@@ -80,5 +80,6 @@ bw = 0.194
 blft = -0.148
 bitr = -0.167
 initval = [xt_init; xl_init; xm_init; 0; xf_init; blft; bw; bitr; xq_init; zeros(2); -1.5]
-mig_leftbh_llk(initval, Delta_init, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
+
+@code_warntype mig_leftbh_llk(initval, Delta_init, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
 			   ZSHK, USHK, wgt, nind, nalt, nsim, ngvec)

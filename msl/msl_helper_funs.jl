@@ -6,14 +6,14 @@ function lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, bw, blft, bitr)
 	end
 end
 
-function qfun(lnw, ln1mlam, xbq, bw, blft, bitr)
-    # b2 = blft < 0
-    # b1 = bw > 0
-    # b3 = bitr < 0
-    dlnq = blft + bitr * lnw + bw * ln1mlam
-	lnq_mig = bw * lnw - bw * ln1mlam + xbq
-    return (dlnq, lnq_mig)
-end
+# function qfun(lnw, ln1mlam, xbq, bw, blft, bitr)
+#     # b2 = blft < 0
+#     # b1 = bw > 0
+#     # b3 = bitr < 0
+#     dlnq = blft + bitr * lnw + bw * ln1mlam
+# 	lnq_mig = bw * lnw - bw * ln1mlam + xbq
+#     return (dlnq, lnq_mig)
+# end
 
 using StatsFuns:logaddexp
 function gamfun(lnw, dlnq, lnq_mig, xbl, ln1mlam, theta)
