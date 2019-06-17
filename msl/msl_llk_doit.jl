@@ -2,7 +2,8 @@ using FileIO, DataFrames, CSV, Statistics, StatsBase
 using SharedArrays, LinearAlgebra
 include("msl_helper_funs.jl")
 include("msl_data_prepare.jl")
-include("msl_llk.jl")
+# include("msl_llk.jl")
+include("msl_llk_loop.jl")
 
 DTDIR = "E:/NutStore/Research/mig_leftbh_enrollment"
 
@@ -19,8 +20,9 @@ LeftbhData[:nchild_lnhp] = LeftbhData[:lnhprice].* LeftbhData[:nchild]
 
 lnDataShare, Delta_init, lnW, lnP, wgt,
 XT, XM, XL, XF, XQ, nalt, nind, ngvec = data_prepare(LeftbhData)
-yl = Vector{Float64}(LeftbhData[:chosen])
-ym = Vector{Float64}(LeftbhData[:child_leftbh])
+YL = Vector{Float64}(LeftbhData[:chosen])
+YM = Vector{Float64}(LeftbhData[:child_leftbh])
+dgvec = [locate_gidx(i, ngvec) for i = 1:nind]
 
 ##
 ## 2. get random draw
@@ -61,7 +63,7 @@ XFnames = [:treat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
 XLnames = [:cfemale, :nchild, :cagey, :cageysq]
 lftvar = [XTnames; XFnames; XLnames]
 lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))))
-lft_fit = glm(lft_form, view(LeftbhData, yl .== 1, :),
+lft_fit = glm(lft_form, view(LeftbhData, YL .== 1, :),
 			  Binomial(), LogitLink(), wts = wgt)
 lft_init = coef(lft_fit)
 
@@ -81,5 +83,18 @@ blft = -0.148
 bitr = -0.167
 initval = [xt_init; xl_init; xm_init; 0; xf_init; blft; bw; bitr; xq_init; zeros(2); -1.5]
 
-@code_warntype mig_leftbh_llk(initval, Delta_init, yl, ym, lnW, lnP, XT, XL, XM, XF, XQ,
-			   ZSHK, USHK, wgt, nind, nalt, nsim, ngvec)
+XTt = copy(XT')
+XLt = copy(XL')
+XMt = copy(XM')
+XFt = copy(XF')
+XQt = copy(XQ')
+ZSt = copy(ZSHK')
+@time mig_leftbh_llk(initval, Delta_init, YL, YM, lnW, lnP, XTt, XLt, XMt, XFt, XQt,
+			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec)
+# 430352.6129; 6s
+
+using Optim, ForwardDiff
+llk_opt = parm -> mig_leftbh_llk(parm, Delta_init, YL, YM, lnW, lnP, XTt, XLt, XMt, XFt, XQt,
+			   					 ZSt, USHK, wgt, nind, nalt, nsim, dgvec)
+@time llk_opt(initval)
+@time gr = ForwardDiff.gradient(llk_opt, initval)

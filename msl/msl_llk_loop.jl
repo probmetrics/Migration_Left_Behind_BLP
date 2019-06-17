@@ -7,7 +7,7 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 						ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
 						wgt::AbstractVector{T}, nind::Int, nalt::Int,
 						nsim::Int, dgvec::AbstractVector{Int};
-						alpha::AbstractFloat = 0.12, xdim::Int = 2) where T <: AbstractFloat
+						alpha::AbstractFloat = 0.12, xdim::Int = 1) where T <: AbstractFloat
 	##
 	## Delta:   nalt x g Matrix
 	## XT: 		nt x N Matrix
@@ -22,30 +22,28 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 
 	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
 
-	# --- key input vectors ---
-	Xbt = XT * bt
-	Xbl = XL * bl
-
-	Xbm = XM * bm
-	ln1mlam = XF * bf
-	broadcast!(log1pexp, ln1mlam, ln1mlam) #<-- [-ln(1-lam)]
-	dlnQ = blft .+ bitr * lnW + bw * ln1mlam
-	lnQ_mig = bw * lnW - bw * ln1mlam + XQ * bq
-
-	Zbr = ZSHK * bz
+	# --- setup containers ---
+	TT = promote_type(eltype(parm), eltype(Delta_init))
+	xbm = zeros(TT, nalt)
+	xbq = zeros(TT, nalt)
+	ln1mlam = zeros(TT, nalt)
+	lnq_mig = zeros(TT, nalt)
+	dlnq = zeros(TT, nalt)
+	zbr = zeros(TT, nsim)
 
 	# --- begin the loop ---
-	llk = zero(eltype(parm))
+	llk = zero(TT)
 	@fastmath @inbounds @simd for i = 1:nind
 		ind_sel = (1 + nalt * (i - 1)):(i * nalt)
 		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 		g = view(dgvec, i)
 
-		llk += individual_llk(bw, blft, bitr, sigu, alpha, view(Delta, :, g), view(YL, ind_sel),
-							  view(YM, ind_sel), view(lnW, ind_sel), view(lnP, ind_sel),
-							  Xbt[i], Xbl[i], view(Xbm, ind_sel), view(ln1mlam, ind_sel),
-							  view(dlnQ, ind_sel), view(lnQ_mig, ind_sel), view(Zbr, sim_sel),
-							  view(USHK, sim_sel), nalt, nsim) * wgt[i]
+		llk += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, alpha,
+							  view(Delta, :, g), xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr,
+							  view(YL, ind_sel), view(YM, ind_sel), view(lnW, ind_sel),
+							  view(lnP, ind_sel), view(XT, :, i), view(XL, :, i),
+							  view(XM, :, ind_sel), view(XF, :, ind_sel), view(XQ, :, ind_sel),
+							  view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim) * wgt[i]
 	end
 
 	return llk
@@ -53,8 +51,9 @@ end
 
 
 using StatsFuns:logistic
-function individual_llk(bw, blft, bitr, sigu, alpha, delta, yl, ym, lnw, lnp, xbt, xbl,
-						xbm, ln1mlam, dlnq, lnq_mig, zbr, ushk, nalt, nsim)
+function individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, alpha, delta,
+						xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr, yl, ym, lnw, lnp, xt,
+						xl, xm, xf, xq, zshk, ushk, nalt, nsim)
 	##
 	## delta: 		J x 1 Vector
 	## lnw, lnp: 	J x 1 Vector
@@ -65,6 +64,17 @@ function individual_llk(bw, blft, bitr, sigu, alpha, delta, yl, ym, lnw, lnp, xb
 	## zbr, 		S x 1 Vector
 	## ushk:		S x 1 Vector
 	##
+
+	# --- intermediate vars ---
+	xbt = xt' * bt
+	xbl = xl' * bl
+	mul!(xbm, xm', bm)
+	mul!(ln1mlam, xf', bf)
+	broadcast!(log1pexp, ln1mlam, ln1mlam)
+
+	mul!(xbq, xq', bq)
+	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, bw, blft, bitr)
+	mul!(zbr, zshk', bz)
 
 	# --- setup containers ---
 	TT = promote_type(eltype(bw), eltype(lnw))
@@ -80,7 +90,7 @@ function individual_llk(bw, blft, bitr, sigu, alpha, delta, yl, ym, lnw, lnp, xb
 		zrnd = zbr[s]
 		urnd = ushk[s]
 		theta = logistic(xbt + zrnd + sigu * urnd)
-		@inbounds for j = 1:nalt
+		for j = 1:nalt
 			# calculate lft_prob
 			lft_pr_tmp = leftbh_prob(theta, ln1mlam[j], xbl, dlnq[j])
 			lftpr_s += (lft_pr_tmp * ym[j] + (unit - ym[j]) * (unit - lft_pr_tmp)) * yl[j]
@@ -105,7 +115,7 @@ using StatsFuns:logistic
 function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T};
-					 xdim::Int = 2) where T <: AbstractFloat
+					 xdim::Int = 1) where T <: AbstractFloat
 	 nxt = size(XT, xdim)
 	 nxl = size(XL, xdim)
 	 nxm = size(XM, xdim)

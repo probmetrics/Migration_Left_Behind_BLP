@@ -1,5 +1,5 @@
 using DataFrames
-function data_prepare(df::AbstractDataFrame)
+function data_prepare(df::AbstractDataFrame; trs::Bool = false)
     ndt = nrow(df)
     city_alts = Vector{Int64}(df[:city_alts])
     nalt = length(unique(city_alts))
@@ -44,6 +44,14 @@ function data_prepare(df::AbstractDataFrame)
 
     XQnames = [:cfemale, :cagey, :nchild]
     XQ = convert(Array{Float64, 2}, df[XQnames])
+
+    if trs == true
+        XT = copy(XT')
+        XL = copy(XL')
+        XM = copy(XM')
+        XF = copy(XF')
+        XQ = copy(XQ')
+    end
 
     return(lnDataShare, Delta_init, lnW, lnP, wgt, XT, XM, XL, XF, XQ, nalt, nind, ngvec)
 end
