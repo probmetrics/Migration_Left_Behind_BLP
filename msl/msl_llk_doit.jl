@@ -4,6 +4,7 @@ include("msl_helper_funs.jl")
 include("msl_data_prepare.jl")
 # include("msl_llk.jl")
 include("msl_llk_loop.jl")
+include("msl_blp_squarem.jl")
 
 DTDIR = "E:/NutStore/Research/mig_leftbh_enrollment"
 
@@ -103,3 +104,14 @@ llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, Delta_init, YL, YM, lnW, ln
 											   nind, nalt, nsim, dgvec)
 @time llk_opt_thread(initval)
 @time gr = ForwardDiff.gradient(llk_opt_thread, initval)
+
+##
+## 5. Compute the predicted location choice probabilities
+##
+
+ngrp = maximum(dgvec)
+mktshare = zeros(nalt, ngrp)
+@time locpr_serial!(mktshare, initval, Delta_init, lnW, lnP, XT, XL, XM,
+			   		XF, XQ, ZSt, USHK, wgt, nind, nalt, nsim, dgvec)
+@time locpr_thread!(mktshare, initval, Delta_init, lnW, lnP, XT, XL, XM,
+			   		XF, XQ, ZSt, USHK, wgt, nind, nalt, nsim, dgvec)
