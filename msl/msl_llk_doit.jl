@@ -19,7 +19,7 @@ LeftbhData[:nchild_lnmw] = LeftbhData[:lnmnw_city].* LeftbhData[:nchild]
 LeftbhData[:nchild_lnhp] = LeftbhData[:lnhprice].* LeftbhData[:nchild]
 
 lnDataShare, Delta_init, lnW, lnP, wgt,
-XT, XM, XL, XF, XQ, nalt, nind, ngvec = data_prepare(LeftbhData)
+XT, XM, XL, XF, XQ, nalt, nind, ngvec = data_prepare(LeftbhData; trs = true)
 YL = Vector{Float64}(LeftbhData[:chosen])
 YM = Vector{Float64}(LeftbhData[:child_leftbh])
 dgvec = [locate_gidx(i, ngvec) for i = 1:nind]
@@ -71,30 +71,35 @@ lft_init = coef(lft_fit)
 ## 4. Evaluate the likelihood
 ##
 
-nparm = size(XT, 2) + size(XL, 2) + size(XM, 2) + size(XF, 2) + 3 +
-		size(XQ, 2) + size(ZSHK, 2) + 1
+nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
+		size(XQ, 1) + size(ZSHK, 1) + 1
 xt_init = lft_init[1:6]
 xf_init = lft_init[7:14]
 xl_init = lft_init[15:end]
-xm_init = zeros(size(XM, 2))
-xq_init = zeros(size(XQ, 2))
+xm_init = zeros(size(XM, 1))
+xq_init = zeros(size(XQ, 1))
 bw = 0.194
 blft = -0.148
 bitr = -0.167
 initval = [xt_init; xl_init; xm_init; 0; xf_init; blft; bw; bitr; xq_init; zeros(2); -1.5]
 
-XTt = copy(XT')
-XLt = copy(XL')
-XMt = copy(XM')
-XFt = copy(XF')
-XQt = copy(XQ')
 ZSt = copy(ZSHK')
-@time mig_leftbh_llk(initval, Delta_init, YL, YM, lnW, lnP, XTt, XLt, XMt, XFt, XQt,
+@time mig_leftbh_llk(initval, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
 			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec)
-# 430352.6129; 6s
+# 430352.6129; 5.2s
+
+@time mig_leftbh_llk_thread(initval, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
+			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec)
+# 430352.6129; 0.8s for 8 threads
 
 using Optim, ForwardDiff
-llk_opt = parm -> mig_leftbh_llk(parm, Delta_init, YL, YM, lnW, lnP, XTt, XLt, XMt, XFt, XQt,
-			   					 ZSt, USHK, wgt, nind, nalt, nsim, dgvec)
+llk_opt = parm -> mig_leftbh_llk(parm, Delta_init, YL, YM, lnW, lnP, XT, XL, XM,
+			   					 XF, XQ, ZSt, USHK, wgt, nind, nalt, nsim, dgvec)
 @time llk_opt(initval)
 @time gr = ForwardDiff.gradient(llk_opt, initval)
+
+llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, Delta_init, YL, YM, lnW, lnP,
+											   XT, XL, XM, XF, XQ, ZSt, USHK, wgt,
+											   nind, nalt, nsim, dgvec)
+@time llk_opt_thread(initval)
+@time gr = ForwardDiff.gradient(llk_opt_thread, initval)
