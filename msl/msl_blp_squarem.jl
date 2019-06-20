@@ -122,7 +122,7 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 
 	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
 
-	TT = promote_type(eltype(parm), eltype(Delta_init))
+	TT = promote_type(eltype(parm), eltype(Delta))
 	ngrp = maximum(dgvec)
 
 	# --- begin the loop ---
@@ -183,7 +183,7 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu =
 		unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
 
-	TT = promote_type(eltype(parm), eltype(Delta_init))
+	TT = promote_type(eltype(parm), eltype(Delta))
 
 	# --- setup containers  ---
 	xbm = zeros(TT, nalt)
