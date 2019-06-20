@@ -22,7 +22,7 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
 
 	# --- setup containers ---
-	TT = promote_type(eltype(parm), eltype(Delta_init))
+	TT = promote_type(eltype(parm), eltype(Delta))
 	xbm = zeros(TT, nalt)
 	xbq = zeros(TT, nalt)
 	ln1mlam = zeros(TT, nalt)
@@ -168,7 +168,7 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 
 	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
 
-	TT = promote_type(eltype(parm), eltype(Delta_init))
+	TT = promote_type(eltype(parm), eltype(Delta))
 
 	# --- begin the loop ---
 	llk = zeros(TT, Threads.nthreads())
