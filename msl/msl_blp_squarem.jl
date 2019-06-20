@@ -1,3 +1,103 @@
+function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T},
+                      delta_old::AbstractMatrix{T}, delta_q1::AbstractMatrix{T},
+					  delta_q2::AbstractMatrix{T}, lnDataShare::AbstractMatrix{T},
+					  parm::AbstractVector{T}, lnW::AbstractVector{T}, lnP::AbstractVector{T},
+ 					  XT::AbstractMatrix{T}, XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
+					  XF::AbstractMatrix{T}, XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
+ 					  USHK::AbstractVector{T}, wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+					  nind::Int, nalt::Int, nsim::Int, dgvec::AbstractVector{Int};
+					  alpha::AbstractFloat = 0.12, xdim::Int = 1, ftolerance::Float64 = 1e-10,
+					  fpiter::Int = 500, mstep::Float64 = 4.0, stepmin_init::Float64 = 1.0,
+					  stepmax_init::Float64 = 1.0, alphaversion::Int = 3) where T <: AbstractFloat
+    # default values:
+	#	mstem::Float64 = 4.0
+    #   stepmin::Float64 = 1.0,
+    #   stepmax::Float64 = 1.0,
+    #   alphaversion::Int = 3
+
+	## --- update delta ---
+	printstyled("BLP Contraction Mapping using SquareM...\n", color = :light_blue)
+	j = 1
+	deltaconv = one(eltype(ftolerance))
+    stepmax = stepmax_init
+    stepmin = stepmin_init
+	while deltaconv > ftolerance
+		if j > fpiter
+			printstyled("\nMaximum Fixed Point Iters Reached, NOT Converged\n", color = :light_red)
+			break
+		end
+		## --- begin the SquareM method ---
+		update_delta!(delta_new, delta_old, lnDataShare, parm, lnW, lnP, XT, XL, XM, XF, XQ,
+					  ZSHK, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+		@. delta_q1 = delta_new - delta_old
+		trace_print(j)
+		j += 1
+
+		update_delta!(delta_fpt, delta_new, lnDataShare, parm, lnW, lnP, XT, XL, XM, XF, XQ,
+					  ZSHK, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+		@. delta_q2 = delta_fpt - delta_new
+		trace_print(j)
+		j += 1
+
+		# -- get the step-size --
+		step_alpha = compute_alpha(delta_q1, delta_q2, stepmin, stepmax, alphaversion)
+		@. delta_new = delta_old + 2.0 * step_alpha * delta_q1 + step_alpha^2 * (delta_q2 - delta_q1)
+		update_delta!(delta_fpt, delta_new, lnDataShare, parm, lnW, lnP, XT, XL, XM, XF, XQ,
+					  ZSHK, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+		trace_print(j)
+		j += 1
+
+		# --- error handling ---
+		if ismissing(delta_fpt)
+		    warn("Missing values generated during SquareM mapping, switch to BLP mapping\n")
+		    update_delta!(delta_new, delta_old, lnDataShare, parm, lnW, lnP, XT, XL, XM, XF, XQ,
+						  ZSHK, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+			j += 1
+			trace_print(j)
+            update_delta!(delta_fpt, delta_new, lnDataShare, parm, lnW, lnP, XT, XL, XM, XF, XQ,
+						  ZSHK, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+            j += 1
+			trace_print(j)
+		end
+
+        # -- update step size --
+		if step_alpha == stepmax
+		    stepmax = mstep * stepmax
+		end
+		if (step_alpha == stepmin) & (step_alpha < 0)
+		    stepmin = mstep * stepmin
+		end
+
+		deltaconv = mreldif(delta_fpt, delta_new)
+        copyto!(delta_old, delta_fpt)
+	end # <-- end of while loop
+
+    if j <= fpiter
+		printstyled("\nContraction Mapping Converged after $j Iterations\n", color = :light_blue)
+    end
+end
+
+function update_delta!(delta_new::AbstractMatrix{T}, delta_old::AbstractMatrix{T},
+					   lnDataShare::AbstractMatrix{T}, parm::AbstractVector{T},
+					   lnW::AbstractVector{T}, lnP::AbstractVector{T},
+					   XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
+					   XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
+					   XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
+					   USHK::AbstractVector{T}, wgt::AbstractVector{T},
+					   sgwgt::AbstractVector{T}, nind::Int, nalt::Int, nsim::Int,
+					   dgvec::AbstractVector{Int}; alpha::AbstractFloat = 0.12,
+					   xdim::Int = 1) where T <: AbstractFloat
+
+    locpr_thread!(delta_new, parm, delta_old, lnW, lnP, XT, XL, XM,
+				  XF, XQ, ZSHK, USHK, wgt, sgwgt, nind, nalt, nsim,
+				  dgvec; alpha = alpha, xdim = xdim)
+	broadcast!(log, delta_new, delta_new)
+    @fastmath @inbounds @simd for i = eachindex(delta_new)
+        delta_new[i] = delta_old[i] + lnDataShare[i] - delta_new[i]
+    end
+	delta_new[1, :] .= zero(eltype(delta_new))
+end
+
 function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVector{T},
 					   lnP::AbstractVector{T}, XT::AbstractMatrix{T},
 					   XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
@@ -80,7 +180,8 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu =
+		unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta_init))
 
@@ -110,9 +211,9 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 end
 
 using StatsFuns:logistic, log1pexp, softmax!
-function loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, alpha, delta,
-						xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr, lnw, lnp, xt,
-						xl, xm, xf, xq, zshk, ushk, nalt, nsim)
+function loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu,
+						alpha, delta, xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr, lnw,
+						lnp, xt, xl, xm, xf, xq, zshk, ushk, nalt, nsim)
 	##
 	## delta: 		J x 1 Vector
 	## lnw, lnp: 	J x 1 Vector
