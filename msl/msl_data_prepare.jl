@@ -6,12 +6,15 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
     ngvec = by(view(df, df[:chosen] .== 1, :), [:treat, :year], nrow, sort = true)[3]
     ngvec = cumsum(ngvec)
     nind = Int(ndt / nalt)
+    dgvec = [locate_gidx(i, ngvec) for i = 1:nind]
 
     lnW = Vector{Float64}(df[:lnhinc_alts])
     lnW = lnW .- mean(lnW, weights(Vector{Float64}(df[:w_l])))
     lnP = Vector{Float64}(df[:lnhprice])
-    wgt = Vector{Float64}(df[df[:chosen] .== 1, :w_l])
+    wgt = Vector{Float64}(df[df[:chosen] .== 1, :w_l)
 
+    sgwgt = countmap(dgvec, weights(wgt))
+    sgwgt = [sgwgt[i] for i = 1:length(sgwgt)]
 
     # --- initial value of delta ---
     cfreq = by(view(df, df[:chosen] .== 1, :), [:treat, :year, :city_alts], d -> sum(d[:w_l]))
@@ -53,7 +56,7 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
         XQ = copy(XQ')
     end
 
-    return(lnDataShare, Delta_init, lnW, lnP, wgt, XT, XM, XL, XF, XQ, nalt, nind, ngvec)
+    return(lnDataShare, Delta_init, lnW, lnP, wgt, sgwgt, XT, XM, XL, XF, XQ, nalt, nind, dgvec)
 end
 
 #=
