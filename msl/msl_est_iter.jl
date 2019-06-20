@@ -5,7 +5,7 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
 					  XM::AbstractMatrix{T}, XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 					  ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T}, wgt::AbstractVector{T},
 					  sgwgt::AbstractVector{T}, nind::Int, nalt::Int, nsim::Int, dgvec::AbstractVector{Int};
-					  alpha::AbstractFloat = 0.12, xdim::Int = 2, btolerance::Float64 = 1.0e-6,
+					  alpha::AbstractFloat = 0.12, xdim::Int = 1, btolerance::Float64 = 1.0e-6,
 					  biter::Int = 500, ftolerance::Float64 = 1.0e-10, fpiter::Int = 2000,
                       mstep::Float64 = 4.0, stepmin::Float64 = 1.0,	stepmax::Float64 = 1.0,
 					  alphaversion::Int = 3) where T <: AbstractFloat
@@ -25,8 +25,7 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
 	coefx_old = copy(initpar)
 	llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, delta_old, YL, YM, lnW, lnP,
 												   XT, XL, XM, XF, XQ, ZSHK, USHK, wgt,
-												   nind, nalt, nsim, dgvec;
-												   alpha = alpha, xdim = xdim)
+												   nind, nalt, nsim, dgvec, alpha, xdim)
 	println("\nInitial value of likelihood function = ", llk_opt_thread(coefx_old))
 	algo_bt = BFGS(;alphaguess = LineSearches.InitialStatic(),
 	                linesearch = LineSearches.BackTracking())

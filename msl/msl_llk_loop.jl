@@ -5,8 +5,8 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 						XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 						ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
 						wgt::AbstractVector{T}, nind::Int, nalt::Int,
-						nsim::Int, dgvec::AbstractVector{Int};
-						alpha::AbstractFloat = 0.12, xdim::Int = 1) where T <: AbstractFloat
+						nsim::Int, dgvec::AbstractVector{Int},
+						alpha::T, xdim::Int) where T <: AbstractFloat
 	##
 	## Delta:   nalt x g Matrix
 	## XT: 		nt x N Matrix
@@ -19,7 +19,7 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, xdim)
 
 	# --- setup containers ---
 	TT = promote_type(eltype(parm), eltype(Delta))
@@ -111,8 +111,8 @@ end
 
 function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
-					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T};
-					 xdim::Int = 1) where T <: AbstractFloat
+					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
+					 xdim::Int) where T <: AbstractFloat
 	 nxt = size(XT, xdim)
 	 nxl = size(XL, xdim)
 	 nxm = size(XM, xdim)
@@ -152,8 +152,8 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 						XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 						ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
 						wgt::AbstractVector{T}, nind::Int, nalt::Int,
-						nsim::Int, dgvec::AbstractVector{Int};
-						alpha::AbstractFloat = 0.12, xdim::Int = 1) where T <: AbstractFloat
+						nsim::Int, dgvec::AbstractVector{Int},
+						alpha::T, xdim::Int) where T <: AbstractFloat
 	##
 	## Delta:   nalt x g Matrix
 	## XT: 		nt x N Matrix
@@ -166,7 +166,7 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
 

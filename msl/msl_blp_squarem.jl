@@ -120,7 +120,7 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
 	ngrp = maximum(dgvec)
@@ -181,7 +181,7 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	##
 
 	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu =
-		unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
+		unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
 
