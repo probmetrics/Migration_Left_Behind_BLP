@@ -3,8 +3,8 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 					   XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 					   XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 					   ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
-					   wgt::AbstractVector{T}, nind::Int, nalt::Int,
-					   nsim::Int, dgvec::AbstractVector{Int};
+					   wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+					   nind::Int, nalt::Int, nsim::Int, dgvec::AbstractVector{Int};
 					   alpha::AbstractFloat = 0.12, xdim::Int = 1) where T <: AbstractFloat
 	##
 	## Delta:   nalt x g Matrix
@@ -15,6 +15,8 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## XQ: 		nq x NJ Matrix
 	## ZSHK: 	nz x (NS) Matrix
 	## USHK:	NS Vector
+	## wgt:		N Vector
+	## sgwgt:	g Vector, sum of weights for each Delta group
 	## dgvec:	N Vector
 	##
 
@@ -53,6 +55,7 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 		end
 	end
 	sum!(mktshare, mkt_collect)
+	broadcast!(/, mktshare, mktshare, sgwgt')
 end
 
 function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVector{T},
@@ -60,8 +63,8 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 						XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 						XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 						ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
-						wgt::AbstractVector{T}, nind::Int, nalt::Int,
-						nsim::Int, dgvec::AbstractVector{Int};
+						wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+						nind::Int, nalt::Int, nsim::Int, dgvec::AbstractVector{Int};
 						alpha::AbstractFloat = 0.12, xdim::Int = 1) where T <: AbstractFloat
 	##
 	## Delta:   nalt x g Matrix
@@ -72,6 +75,8 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## XQ: 		nq x NJ Matrix
 	## ZSHK: 	nz x (NS) Matrix
 	## USHK:	NS Vector
+	## wgt:		N Vector
+	## sgwgt:	g Vector, sum of weights for each Delta group
 	## dgvec:	N Vector
 	##
 
@@ -101,6 +106,7 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 					  view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim)
 		BLAS.axpy!(wgt[i], loc_pri, view(mktshare, :, g))
 	end
+	broadcast!(/, mktshare, mktshare, sgwgt')
 end
 
 using StatsFuns:logistic, log1pexp, softmax!
