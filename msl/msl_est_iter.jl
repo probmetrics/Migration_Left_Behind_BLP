@@ -36,7 +36,7 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
     coefx_new = copy(initpar)
     while coefconv > btolerance
         if k > biter
-            printstyled("\nMaximum Iters Reached, NOT Converged!!!\n", color = :light_red)
+            printstyled("Maximum Iters Reached, NOT Converged!!!\n", color = :light_red)
             break
         end
 

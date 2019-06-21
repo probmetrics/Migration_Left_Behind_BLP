@@ -12,17 +12,16 @@ DTDIR = "E:/NutStore/Research/mig_leftbh_enrollment"
 ## 1. load choice data from MPS
 ##
 
-# LeftbhData = readcsv("$DTDIR/mig_leftbh_enroll_fit.csv")
 LeftbhData = CSV.read("$DTDIR/mig_leftbh_enroll_fit.csv"; type = Float64)
 LeftbhData[:cagey] = LeftbhData[:cagey] / 10
-LeftbhData[:cageysq] = LeftbhData[:cagey] .^ 2 / 100
+LeftbhData[:cageysq] = LeftbhData[:cagey].^2
 LeftbhData[:nchild_lnmw] = LeftbhData[:lnmnw_city].* LeftbhData[:nchild]
 LeftbhData[:nchild_lnhp] = LeftbhData[:lnhprice].* LeftbhData[:nchild]
+YL = Vector{Float64}(LeftbhData[:chosen])
+YM = Vector{Float64}(LeftbhData[:child_leftbh])
 
 lnDataShare, Delta_init, lnW, lnP, wgt, sgwgt,
 XT, XM, XL, XF, XQ, nalt, nind, dgvec = data_prepare(LeftbhData; trs = true)
-YL = Vector{Float64}(LeftbhData[:chosen])
-YM = Vector{Float64}(LeftbhData[:child_leftbh])
 
 ##
 ## 2. get random draw
@@ -83,47 +82,47 @@ bitr = -0.167
 initval = [xt_init; xl_init; xm_init; 0; xf_init; blft; bw; bitr; xq_init; zeros(2); -1.5]
 
 ZSt = copy(ZSHK')
-@time mig_leftbh_llk(initval, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
-			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
-# 430352.6129; 5.2s
-
-@time mig_leftbh_llk_thread(initval, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
-			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
-# 430352.6129; 0.8s for 8 threads
-
-using Optim, ForwardDiff
-llk_opt = parm -> mig_leftbh_llk(parm, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF,
-			   					 XQ, ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
-@time llk_opt(initval)
-@time gr = ForwardDiff.gradient(llk_opt, initval)
-
-llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, Delta_init, YL, YM, lnW, lnP,
-											   XT, XL, XM, XF, XQ, ZSt, USHK, wgt,
-											   nind, nalt, nsim, dgvec, 0.12, 1)
-@time llk_opt_thread(initval)
-@time gr = ForwardDiff.gradient(llk_opt_thread, initval)
-
-##
-## 5. Compute the predicted location choice probabilities
-##
-
-ngrp = length(sgwgt)
-mktshare = zeros(nalt, ngrp)
-@time locpr_serial!(mktshare, initval, Delta_init, lnW, lnP, XT, XL, XM,
-			   		XF, XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec)
-@time locpr_thread!(mktshare, initval, Delta_init, lnW, lnP, XT, XL, XM,
-			   		XF, XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec)
-
-# --- BLP Contraction Mapping ---
-delta_fpt = zeros(nalt, ngrp)
-delta_new = zeros(nalt, ngrp)
-delta_old = copy(Delta_init)
-delta_q1 = zeros(nalt, ngrp)
-delta_q2 = zeros(nalt, ngrp)
-@time fpt_squarem!(delta_fpt, delta_new, delta_old, delta_q1, delta_q2, lnDataShare,
-				   initval, lnW, lnP, XT, XL, XM, XF, XQ, ZSt, USHK, wgt, sgwgt,
-				   nind, nalt, nsim, dgvec)
 
 # --- iterative maximization ---
 msl_est_iter(initval, lnDataShare, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF,
 			 XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; biter = 3)
+
+# # --- evaluate log-likelihood ---
+# @time mig_leftbh_llk(initval, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
+# 			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
+# # 430352.6129; 5.2s
+#
+# @time mig_leftbh_llk_thread(initval, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
+# 			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
+# # 430352.6129; 0.8s for 8 threads
+#
+# # --- test for ForwardDiff ---
+# using Optim, ForwardDiff
+# llk_opt = parm -> mig_leftbh_llk(parm, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF,
+# 			   					 XQ, ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
+# @time llk_opt(initval)
+# @time gr = ForwardDiff.gradient(llk_opt, initval)
+#
+# llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, Delta_init, YL, YM, lnW, lnP,
+# 											   XT, XL, XM, XF, XQ, ZSt, USHK, wgt,
+# 											   nind, nalt, nsim, dgvec, 0.12, 1)
+# @time llk_opt_thread(initval)
+# @time gr = ForwardDiff.gradient(llk_opt_thread, initval)
+#
+# # --- predicted location choice probabilities ---
+# ngrp = length(sgwgt)
+# mktshare = zeros(nalt, ngrp)
+# @time locpr_serial!(mktshare, initval, Delta_init, lnW, lnP, XT, XL, XM,
+# 			   		XF, XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec)
+# @time locpr_thread!(mktshare, initval, Delta_init, lnW, lnP, XT, XL, XM,
+# 			   		XF, XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec)
+#
+# # --- BLP Contraction Mapping ---
+# delta_fpt = zeros(nalt, ngrp)
+# delta_new = zeros(nalt, ngrp)
+# delta_old = copy(Delta_init)
+# delta_q1 = zeros(nalt, ngrp)
+# delta_q2 = zeros(nalt, ngrp)
+# @time fpt_squarem!(delta_fpt, delta_new, delta_old, delta_q1, delta_q2, lnDataShare,
+# 				   initval, lnW, lnP, XT, XL, XM, XF, XQ, ZSt, USHK, wgt, sgwgt,
+# 				   nind, nalt, nsim, dgvec)
