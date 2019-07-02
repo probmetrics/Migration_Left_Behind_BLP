@@ -53,12 +53,12 @@ end
 #
 using StatsFuns:log1pexp, logistic
 using LinearAlgebra:dot
-function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, locpr_is, lnqrnd_locpr,
-						  zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zlnqx_mnt, zlnqx_mnt, xm_mnt,
+function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, migpr_is, locpr_is, lnqrnd_lftj,
+						  lnqrnd_migj, zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zlnqx_mnt, zlnqx_mnt, xm_mnt,
 						  xf_lftpr, xl_mnt, xt_mnt, xf_mnt, xq_lnq, nalt_tmp, # <-- containers
-						  xbm, ln1mlam, xbq, dlnq, lnq_mig, lnq_all, zbr, #<-- containers again
+						  xbm, ln1mlam, xbq, dlnq, lnq_mig, lnq_lft, zbr, #<-- containers again
 						  bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, #<-- endogeneous params
-  						  alpha, delta,	prj, ym, yl, lnw, lnp, xt, xl, xm, xf, xq, zshk, #<-- exogeneous params and data
+  						  alpha, delta,	prlj, yl, lnw, lnp, xt, xl, xm, xf, xq, zshk, #<-- exogeneous params and data
 						  ushk, qshk, nalt, nsim)
 	##
 	## mntvec = nalt + (nXM + nlnP) + 2*nXF + 2*lnW + nXL + nXT + 2*nZS
@@ -87,8 +87,7 @@ function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, locpr_is, lnqrnd
 
 	mul!(xbq, xq', bq)
 	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, bw, blft, bitr)
-	# broadcast!(+, lnq_lft, lnq_mig, dlnq)
-	broadcast!((x, y, z) -> x + y * z, lnq_all, lnq_mig, yl, dlnq)
+	broadcast!(+, lnq_lft, lnq_mig, dlnq)
 	mul!(zbr, zshk', bz)
 
 	# --- output containers ---
@@ -96,7 +95,7 @@ function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, locpr_is, lnqrnd
     unit = one(TT)
 	fill!(mktshare, zero(TT))
 	fill!(lftshare, zero(TT))
-	fill!(lnqrnd_locpr, zero(TT))
+	fill!(lnqrnd_lftj, zero(TT))
 	fill!(zm_mnt_lft, zero(TT))
 	fill!(zm_mnt_mig, zero(TT))
 	fill!(zlnw_mnt, zero(TT))
@@ -112,6 +111,7 @@ function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, locpr_is, lnqrnd
         for j = 1:nalt
             # --- 1. leftbh prob ---
 			lftpr_is[j] = leftbh_prob(theta, ln1mlam[j], xbl, dlnq[j])
+			migpr_is[j] = unit - lftpr_is[j]
 
             # --- 2. location specific utility ---
 			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta)
@@ -122,8 +122,9 @@ function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, locpr_is, lnqrnd
 
 		ucpr_lft_is = dot(lftpr_is, locpr_is) # <-- unconditional left-behind prob.
 
-		# --- 4-2. choice probability weighted lnqrnd: E(lnqrnd|j) ---
-		BLAS.axpy!(lnqrnd, locpr_is, lnqrnd_locpr)
+		# --- 4-2. choice probability weighted lnqrnd: E(lnqrnd|k,j) ---
+		BLAS.axpy!(lnqrnd, lftpr_is, lnqrnd_lftj)
+		BLAS.axpy!(lnqrnd, migpr_is, lnqrnd_migj)
 
 		# --- 5-1 moments for zshk: E(z|k) ---
 		BLAS.axpy!(ucpr_lft_is, zshk, zm_mnt_lft)
@@ -132,11 +133,15 @@ function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, locpr_is, lnqrnd
 		# --- 5-2 interaction between z and lnw: E(z'lnw|k) ---
 		# broadcast!(*, nalt_tmp, lnw, lftpr_is, locpr_is)
 		# BLAS.axpy!(sum(nalt_tmp), zshk, zlnw_mnt
+
+		# unconditional covariance: E(z'lnw)
 		BLAS.axpy!(dot(lnw, locpr_is), zshk, zlnw_mnt)
 
 		# --- 5-3 interaction between z and lnqx: E(z'lnqx|k) ---
 		# broadcast!(*, nalt_tmp, lnqx, lftpr_is, locpr_is)
 		# BLAS.axpy!(sum(nalt_tmp), zshk, zlnqx_mnt)
+
+		# unconditional covariance: E(z'lnqx)
 		BLAS.axpy!(dot(lnqx, locpr_is), zshk, zlnw_mnt)
 
         lftshare .+= lftpr_is
@@ -150,7 +155,8 @@ function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, locpr_is, lnqrnd
 	zlnqx_mnt ./= nsim
 	lftshare ./= nsim
 	mktshare ./= nsim
-	lnqrnd_locpr ./= nsim
+	lnqrnd_lftj ./= nsim
+	lnqrnd_migj ./= nsim
 
 	uc_lft_pr = dot(lftshare, mktshare)
 
@@ -166,8 +172,8 @@ function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, locpr_is, lnqrnd
 
 	# --- moments for income lnW: E(lnw) & E(lnw|k) ---
 	mlnw = dot(lnw, mktshare)
-	broadcast!(*, nalt_tmp, lnw, lftshre, mktshare)
-	mlnw_lft = sum(nalt_tmp)
+	broadcast!(*, nalt_tmp, lftshre, mktshare)
+	mlnw_lft = dot(lnw, nalt_tmp)
 
 	# --- moments for XL: E(xl|k) ---
 	xl_mnt .= uc_lft_pr * xl
@@ -175,19 +181,25 @@ function individual_mnts!(mntvec, mktshare, lftshare, lftpr_is, locpr_is, lnqrnd
 	# --- moments for XT: E(xt|k) ---
 	xt_mnt .= uc_lft_pr * xt
 
-	# --- covariance between xq and lnq, lnw and lnq ---
-	broadcast!((x, y, z, m) -> (x + y / z) * m, nalt_tmp, lnq_all, lnqrnd_locpr, prj, ym)
-	mul!(xq_lnq, xq, nalt_tmp)
-	lnq_lft = dot(nalt_tmp, yl)
-	lnw_lnq = dot(lnw, nalt_tmp)
-	lnw_lnq_lft = dot(lnw_lnq, yl)
+	# --- E(xq'lnq | k = 1), E(lnw lnq | k = 1) ---
+	broadcast!((x, y, z) -> x + y / z, lnq_lft, lnqrnd_lftj, prlj)
+	broadcast!(*, nalt_tmp, lnq_lft, mktshare)
+	mul!(xq_lnq_lft, xq, nalt_tmp)
+	lnwq_lft = dot(lnw, nalt_tmp)
 
-	# --- covariance between lnq^2 and yl ---
-	broadcast!(*, nalt_tmp, nalt_tmp, nalt_tmp)
-	lnq2_avg = sum(nalt_tmp)
-	lnq2_lft = dot(nalt_tmp, yl)
+	# --- E(lnq^2 | k = 1) ---
+	lnq2_lft = dot(lnq_lft, nalt_tmp)
+
+	# --- E(xq'lnq | k = 0), E(lnw lnq | k = 0) ---
+	broadcast!((x, y, z) -> x + y / (unit - z), lnq_mig, lnqrnd_migj, prlj)
+	broadcast!(*, nalt_tmp, lnq_mig, mktshare)
+	mul!(xq_lnq_mig, xq, nalt_tmp)
+	lnwq_mig = dot(lnw, nalt_tmp)
+
+	# # --- E(lnq^2 | k = 0) ---
+	lnq2_mig = dot(lnq_mig, nalt_tmp)
 
 	vcat(lftshare, xm_mnt, mlnp, xf_mnt, xf_lftpr, mlnw, mlnw_lft,, xl_mnt, xt_mnt,
-		 zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zlnqx_mnt, xq_lnq, lnq_lft, lnw_lnq,
-		 lnw_lnq_lft, lnq2_avg, lnq2_lft)
+		 zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zlnqx_mnt, xq_lnq_lft, xq_lnq_mig, lnwq_lft,
+		 lnwq_mig, lnq2_lft, lnq2_mig)
 end
