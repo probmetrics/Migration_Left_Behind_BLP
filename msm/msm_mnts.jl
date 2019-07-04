@@ -1,16 +1,65 @@
-function get_moments_adn(bw, blft, bitr, sigu, sigq, rhoq, psi,
-						 bt, bl, bm, bf, bq, bqc, bz, XT, XL, XM, XF, XQ, XQC,
-						 lnW::SharedArray{T, 1}, QSHK::SharedArray{T, 1}, USHK::SharedArray{T, 1},
-						 ZSHK::SharedArray{T, 2}, pr_lft::SharedArray{T, 1},
-						 prj_qlft::SharedArray{T, 2}, sdelta::SharedArray{T, 2}, ngvec::SharedArray{Int, 1},
-						 htype_index::Array{Array{Int, 1}, 1}, wgt::SharedArray{T, 1},
-						 age9dum::SharedArray{T, 1}, nind::Int, nmnt::Int, nalt::Int, nsim::Int) where T <: AbstractFloat
+function get_moments(parm,
+					 alpha::T, lnW::AbstractVector{T}, lnP::AbstractVector{T},
+					 lnQX::AbstractVector{T},
+					 XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
+					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
+					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
+					 USHK::AbstractVector{T}, QSHK::AbstractVector{T},
+					 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
+					 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
+					 htvec::AbstractVector{Int}, wgt::AbstractVector{T},
+					 sgwgt::AbstractVector{T}, nind::Int, nalt::Int,
+					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, mnt_idx =
+			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
+
+	TT = promote_type(eltype(parm), eltype(lnW))
 	mnt_len = sum(mnt_idx)
 	mnt_range = get_mnt_range(mnt_idx)
 	mntvec = zeros(TT, mnt_len)
+	mntmat = zeros(TT, mnt_len, length(unique(htvec)))
 
+	# --- setup containers ---
+	# mktshare, lftshare, lftpr_is, migpr_is, locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp
 
+	mktshare = zeros(TT, nalt)
+	lftshare = zeros(TT, nalt)
+	lftpr_is = zeros(TT, nalt)
+	migpr_is = zeros(TT, nalt)
+	locpr_is = zeros(TT, nalt)
+	lnqrnd_lftj = zeros(TT, nalt)
+	lnqrnd_migj = zeros(TT, nalt)
+	nalt_tmp = zeros(TT, nalt)
+
+	xbm = zeros(TT, nalt)
+	xbq = zeros(TT, nalt)
+	ln1mlam = zeros(TT, nalt)
+	lnq_mig = zeros(TT, nalt)
+	lnq_lft = zeros(TT, nalt)
+	dlnq = zeros(TT, nalt)
+	zbr = zeros(TT, nsim)
+
+	@fastmath @inbounds @simd for i = 1:nind
+		ind_sel = (1 + nalt * (i - 1)):(i * nalt)
+		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
+		g = view(dgvec, i)
+		ht = view(htvec, i)
+
+		individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
+						 locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, # <-- containers
+						 xbm, ln1mlam, xbq, dlnq, lnq_mig, lnq_lft, zbr, #<-- containers again
+						 bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, #<-- endogeneous params
+		  				 alpha, view(Delta, :, g), view(pr_lft, ht), view(pr_lft_alt, :, ht),
+						 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
+						 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
+						 view(lnQX, :, ind_sel), view(XQ, :, ind_sel), view(ZSHK, :, sim_sel),
+						 view(USHK, sim_sel), view(QSHK, sim_sel), nalt, nsim)
+		BLAS.axpy!(wgt[i], mntvec, view(mntmat, :, ht))
+	end
+
+	broadcast!(/, mntmat, mntmat, sgwgt')
+	return mntmat
 end
 
 #
@@ -68,6 +117,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	fill!(mktshare, zero(TT))
 	fill!(lftshare, zero(TT))
 	fill!(lnqrnd_lftj, zero(TT))
+	fill!(lnqrnd_migj, zero(TT))
 	# fill!(zm_mnt_lft, zero(TT))
 	# fill!(zm_mnt_mig, zero(TT))
 	# fill!(zlnw_mnt, zero(TT))
@@ -204,7 +254,7 @@ end
 function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
-					 xdim::Int, nalt::Int) where T <: AbstractFloat
+					 nalt::Int, xdim::Int) where T <: AbstractFloat
 	 nxt = size(XT, xdim)
 	 nxl = size(XL, xdim)
 	 nxm = size(XM, xdim)
@@ -223,10 +273,13 @@ function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 	 bq = parm[(nxt + nxl + nxm + nxf + 4):(nxt + nxl + nxm + nxf + nxq + 3)]
 
 	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 4):(nxt + nxl + nxm + nxf + nxq + nzr + 3)] #<- observed household char.
+
 	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + nzr + 4])
+	 rhoq = tanh(parm[nxt + nxl + nxm + nxf + nxq + nzr + 5])
+	 sigq = exp(parm[nxt + nxl + nxm + nxf + nxq + nzr + 6])
 
 	 mnt_idx = [nalt, nxm, 1, nxf, nxf, 1, 1, nxl, nxt, nzr, nzr, nzr, nzr, nxq, nxq, 1, 1, 1, 1]
-	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, mnt_idx)
+	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, mnt_idx)
 end
 
 function get_mnt_range(mnt_idx::AbstractVector{T}) where T <: Int

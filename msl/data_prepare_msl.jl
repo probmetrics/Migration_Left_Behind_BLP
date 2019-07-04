@@ -11,7 +11,7 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
     lnW = Vector{Float64}(df[:lnhinc_alts])
     lnW = lnW .- mean(lnW, weights(Vector{Float64}(df[:w_l])))
     lnP = Vector{Float64}(df[:lnhprice])
-    wgt = Vector{Float64}(df[df[:chosen] .== 1, :w_l)
+    wgt = Vector{Float64}(df[df[:chosen] .== 1, :w_l])
 
     sgwgt = countmap(dgvec, weights(wgt))
     sgwgt = [sgwgt[i] for i = 1:length(sgwgt)]
