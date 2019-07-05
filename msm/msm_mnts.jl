@@ -1,6 +1,79 @@
-function get_moments(parm,
-					 alpha::T, lnW::AbstractVector{T}, lnP::AbstractVector{T},
-					 lnQX::AbstractVector{T},
+function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
+					 lnP::AbstractVector{T}, lnQX::AbstractVector{T},
+					 XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
+					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
+					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
+					 USHK::AbstractVector{T}, QSHK::AbstractVector{T},
+					 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
+					 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
+					 htvec::AbstractVector{Int}, wgt::AbstractVector{T},
+					 sgwgt::AbstractVector{T}, nind::Int, nalt::Int,
+					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
+
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, mnt_idx =
+			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
+
+	# --- common variables ---
+	TT = promote_type(eltype(parm), eltype(lnW))
+	unit = one(TT)
+	mnt_len = sum(mnt_idx)
+	mnt_range = get_mnt_range(mnt_idx)
+	ht_len = length(unique(htvec))
+
+	mntmat_all = zeros(TT, mnt_len, ht_len, Threads.nthreads())
+	mntmat = zeros(TT, mnt_len, ht_len)
+	Threads.@threads for k = 1:Threads.nthreads()
+		##
+		## NOTE: setup containers for each thread!
+		##
+		mntvec_thread = zeros(TT, mnt_len)
+		mntmat_thread = zeros(TT, mnt_len, ht_len)
+
+		mktshare = zeros(TT, nalt)
+		lftshare = zeros(TT, nalt)
+		lftpr_is = zeros(TT, nalt)
+		migpr_is = zeros(TT, nalt)
+		locpr_is = zeros(TT, nalt)
+		lnqrnd_lftj = zeros(TT, nalt)
+		lnqrnd_migj = zeros(TT, nalt)
+		nalt_tmp = zeros(TT, nalt)
+
+		xbm = zeros(TT, nalt)
+		xbq = zeros(TT, nalt)
+		ln1mlam = zeros(TT, nalt)
+		lnq_mig = zeros(TT, nalt)
+		lnq_lft = zeros(TT, nalt)
+		dlnq = zeros(TT, nalt)
+		zbr = zeros(TT, nsim)
+
+		@fastmath @inbounds for i in get_thread_range(nind)
+			ind_sel = (1 + nalt * (i - 1)):(i * nalt)
+			sim_sel = (1 + nsim * (i - 1)):(i * nsim)
+			g = view(dgvec, i)
+			ht = htvec[i]
+
+			individual_mnts!(mntvec_thread, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
+							 locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, # <-- containers
+							 xbm, ln1mlam, xbq, dlnq, lnq_mig, lnq_lft, zbr, #<-- containers again
+							 bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, #<-- endogeneous params
+							 alpha, view(Delta, :, g), pr_lft[ht], view(pr_lft_alt, :, ht),
+							 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
+							 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
+							 view(lnQX, ind_sel), view(XQ, :, ind_sel), view(ZSHK, :, sim_sel),
+							 view(USHK, sim_sel), view(QSHK, sim_sel), nalt, nsim, unit)
+			BLAS.axpy!(wgt[i], mntvec_thread, view(mntmat_thread, :, ht))
+		end
+		view(mntmat_all, :, :, Threads.threadid()) .= mntmat_thread
+	end
+
+	sum!(mntmat, mntmat_all)
+	broadcast!(/, mntmat, mntmat, sgwgt')
+	return mntmat
+end
+
+
+function get_moments(parm, alpha::T, lnW::AbstractVector{T},
+					 lnP::AbstractVector{T}, lnQX::AbstractVector{T},
 					 XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
@@ -15,14 +88,13 @@ function get_moments(parm,
 			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
 
 	TT = promote_type(eltype(parm), eltype(lnW))
+	unit = one(TT)
 	mnt_len = sum(mnt_idx)
 	mnt_range = get_mnt_range(mnt_idx)
 	mntvec = zeros(TT, mnt_len)
 	mntmat = zeros(TT, mnt_len, length(unique(htvec)))
 
 	# --- setup containers ---
-	# mktshare, lftshare, lftpr_is, migpr_is, locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp
-
 	mktshare = zeros(TT, nalt)
 	lftshare = zeros(TT, nalt)
 	lftpr_is = zeros(TT, nalt)
@@ -54,7 +126,7 @@ function get_moments(parm,
 						 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
 						 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
 						 view(lnQX, ind_sel), view(XQ, :, ind_sel), view(ZSHK, :, sim_sel),
-						 view(USHK, sim_sel), view(QSHK, sim_sel), nalt, nsim)
+						 view(USHK, sim_sel), view(QSHK, sim_sel), nalt, nsim, unit)
 		BLAS.axpy!(wgt[i], mntvec, view(mntmat, :, ht))
 	end
 
@@ -71,7 +143,7 @@ end
 #	   this part of moments help to identify deltas, which
 #	   is calculated by BLP contraction mapping.
 # 	2. combine moments for constant and xvars in XF
-#	3. dont's miss moments for lnW
+#	3. dont't miss moments for lnW
 #
 using StatsFuns:log1pexp, logistic
 using LinearAlgebra:dot
@@ -80,7 +152,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 						  xbm, ln1mlam, xbq, dlnq, lnq_mig, lnq_lft, zbr, #<-- containers again
 						  bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, #<-- endogeneous params
   						  alpha, delta,	pr_lft_h, pr_lft_alt_h, lnw, lnp, xt, xl, xm, xf,  #<-- exogeneous params and data
-						  lnqx, xq, zshk, ushk, qshk, nalt, nsim)
+						  lnqx, xq, zshk, ushk, qshk, nalt, nsim, unit)
 	##
 	## mntvec = nalt + (nXM + nlnP) + 2*nXF + 2*lnW + nXL + nXT + 2*nZS
 	##		  + nZS * (lnW + ZQj) + 2*(nXQ + lnW) + 2
@@ -94,7 +166,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	## ln1mlam, 	J x 1 Vector
 	## xbq, 		scalar or J Vector
 	## zbr, 		S x 1 Vector
-	## zshk, 		nX x S Matrix
+	## zshk, 		nZ x S Matrix
 	## ushk,		S x 1 Vector
 	## qshk,		S x 1 Vector
 	##
@@ -113,7 +185,6 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 
 	# --- output containers ---
 	TT = promote_type(eltype(bw), eltype(lnw))
-    unit = one(TT)
 	fill!(mntvec, zero(TT))
 	fill!(mktshare, zero(TT))
 	fill!(lftshare, zero(TT))
@@ -225,7 +296,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	BLAS.axpy!((uc_lft_pr / pr_lft_h), xt, view(mntvec, mnt_range[9]))
 
 	# --- E(xq'lnq | k = 0), E(lnw lnq | k = 0) ---
-	broadcast!((x, y, z) -> x + y / (unit - z), lnq_mig, lnq_mig, lnqrnd_migj, pr_lft_alt_h)
+	broadcast!((x, y, z, u) -> x + y / (u - z), lnq_mig, lnq_mig, lnqrnd_migj, pr_lft_alt_h, unit)
 	broadcast!(*, nalt_tmp, lnq_mig, mktshare)
 	# mul!(xq_lnq_mig, xq, nalt_tmp)
 	mul!(view(mntvec, mnt_range[14]), xq, nalt_tmp)
@@ -290,4 +361,13 @@ function get_mnt_range(mnt_idx::AbstractVector{T}) where T <: Int
 	mnt_range = [mnt_bgn[i]:mnt_end[i] for i = 1:length(mnt_idx)]
 
 	return mnt_range
+end
+
+function get_thread_range(n)
+    tid = Threads.threadid()
+    nt = Threads.nthreads()
+    d , r = divrem(n, nt)
+    from = (tid - 1) * d + min(r, tid - 1) + 1
+    to = from + d - 1 + (tid <= r ? 1 : 0)
+    from:to
 end
