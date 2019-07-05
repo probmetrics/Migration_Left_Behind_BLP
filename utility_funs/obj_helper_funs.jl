@@ -17,15 +17,16 @@ end
 
 using StatsFuns:logaddexp
 function gamfun(lnw, dlnq, lnq_mig, xbl, ln1mlam, theta)
-    Vlft = (1.0 - theta) * dlnq - xbl
+	unit = oneunit(theta)
+    Vlft = (unit - theta) * dlnq - xbl
     Vmig = - theta * ln1mlam
-    gambar = logaddexp(Vlft, Vmig) + theta * lnw + (1.0 - theta) * lnq_mig
+    gambar = logaddexp(Vlft, Vmig) + theta * lnw + (unit - theta) * lnq_mig
     return gambar
 end
 
 using StatsFuns:logistic
 function leftbh_prob(theta, ln1mlam, xbl, dlnq)
-    dVlft = theta * ln1mlam - xbl + (1.0 - theta) * dlnq
+    dVlft = theta * ln1mlam - xbl + (oneunit(theta) - theta) * dlnq
     lftpr = logistic(dVlft)
     return lftpr
 end
