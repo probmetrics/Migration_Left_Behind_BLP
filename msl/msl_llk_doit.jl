@@ -1,12 +1,15 @@
 using FileIO, DataFrames, CSV, Statistics, StatsBase, LinearAlgebra, GLM
-include("msl_helper_funs.jl")
-include("msl_data_prepare.jl")
-# include("msl_llk.jl")
-include("msl_llk_loop.jl")
-include("squarem_helper_funs.jl")
-include("msl_blp_squarem.jl")
-include("msl_est_iter.jl")
 DTDIR = "E:/NutStore/Research/mig_leftbh_enrollment"
+WKDIR = "E:/Dropbox/GitHub/Migration_Left_Behind_BLP"
+
+include("$WKDIR/utility_funs/obj_helper_funs.jl")
+include("$WKDIR/msl/data_prepare_msl.jl")
+# include("msl_llk.jl")
+include("$WKDIR/msl/msl_llk_loop.jl")
+include("$WKDIR/utility_funs/squarem_helper_funs.jl")
+include("$WKDIR/utility_funs/blp_squarem.jl")
+include("$WKDIR/msl/msl_est_iter.jl")
+
 
 ##
 ## 1. load choice data from MPS
