@@ -69,6 +69,8 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 
 	sum!(mntmat, mntmat_all)
 	broadcast!(/, mntmat, mntmat, sgwgt')
+	# mnt_par = mean(view(mntmat, (nalt + 1):mnt_len, :), weights(sgwgt), dims = 2)
+	# prepend!(mnt_par, vec(mntmat[1:nalt, :]))
 	return mntmat
 end
 
@@ -133,6 +135,8 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 	end
 
 	broadcast!(/, mntmat, mntmat, sgwgt')
+	# mnt_par = mean(view(mntmat, (nalt + 1):mnt_len, :), weights(sgwgt), dims = 2)
+	# prepend!(mnt_par, vec(mntmat[1:nalt, :]))
 	return mntmat
 end
 
@@ -172,6 +176,8 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	## ushk,		S x 1 Vector
 	## qshk,		S x 1 Vector
 	##
+
+	nxf, nxt = size(xf_xt_p)
 
 	# --- intermediate vars ---
 	xbt = xt' * bt
@@ -226,8 +232,8 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 		# --- 5-1 moments for zshk: E(z|k) ---
 		# BLAS.axpy!(ucpr_lft_is, zshk, zm_mnt_lft)
 		# BLAS.axpy!(unit - ucpr_lft_is, zshk, zm_mnt_mig)
-		BLAS.axpy!(ucpr_lft_is, view(zshk, :, s), view(mntvec, mnt_range[13]))
-		BLAS.axpy!(unit - ucpr_lft_is, view(zshk, :, s), view(mntvec, mnt_range[12]))
+		BLAS.axpy!(ucpr_lft_is, view(zshk, :, s), view(mntvec, mnt_range[12]))
+		BLAS.axpy!(unit - ucpr_lft_is, view(zshk, :, s), view(mntvec, mnt_range[11]))
 
 		# --- 5-2 interaction between z and lnw: E(z'lnw|k) ---
 		# broadcast!(*, nalt_tmp, lnw, lftpr_is, locpr_is)
@@ -235,7 +241,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 
 		# unconditional covariance: E(z'lnw)
 		# BLAS.axpy!(dot(lnw, locpr_is), zshk, zlnw_mnt)
-		BLAS.axpy!(dot(lnw, locpr_is), view(zshk, :, s), view(mntvec, mnt_range[14]))
+		BLAS.axpy!(dot(lnw, locpr_is), view(zshk, :, s), view(mntvec, mnt_range[13]))
 
 		# --- 5-3 interaction between z and lnqx: E(z'lnqx|k) ---
 		# broadcast!(*, nalt_tmp, lnqx, lftpr_is, locpr_is)
@@ -243,7 +249,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 
 		# unconditional covariance: E(z'lnqx)
 		# BLAS.axpy!(dot(lnqx, locpr_is), zshk, zlnqx_mnt)
-		BLAS.axpy!(dot(lnqx, locpr_is), view(zshk, :, s), view(mntvec, mnt_range[15]))
+		BLAS.axpy!(dot(lnqx, locpr_is), view(zshk, :, s), view(mntvec, mnt_range[14]))
 
 		uc_lft_pr += ucpr_lft_is
         lftshare .+= lftpr_is
@@ -253,12 +259,12 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 
 	# zm_mnt_lft ./= (nsim * pr_lft)
 	# zm_mnt_mig ./= (nsim * (unit - pr_lft))
-	broadcast!(/, view(mntvec, mnt_range[13]), view(mntvec, mnt_range[13]), (nsim * pr_lft_h))
-	broadcast!(/, view(mntvec, mnt_range[12]), view(mntvec, mnt_range[12]), (nsim * (unit - pr_lft_h)))
+	broadcast!(/, view(mntvec, mnt_range[12]), view(mntvec, mnt_range[12]), (nsim * pr_lft_h))
+	broadcast!(/, view(mntvec, mnt_range[11]), view(mntvec, mnt_range[11]), (nsim * (unit - pr_lft_h)))
 	# zlnw_mnt ./= nsim
 	# zlnqx_mnt ./= nsim
+	broadcast!(/, view(mntvec, mnt_range[13]), view(mntvec, mnt_range[13]), nsim)
 	broadcast!(/, view(mntvec, mnt_range[14]), view(mntvec, mnt_range[14]), nsim)
-	broadcast!(/, view(mntvec, mnt_range[15]), view(mntvec, mnt_range[15]), nsim)
 
 	lftshare ./= nsim
 	mktshare ./= nsim
@@ -273,63 +279,64 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	# mul!(xm_mnt, xm, mktshare)
 
 	# --- moments for housing price lnP: E(lnp) ---
-	view(mntvec, mnt_range[3]) .= dot(lnp, mktshare)
+	# NOTE: NO need, already be contained in XF
+	# view(mntvec, mnt_range[3]) .= dot(lnp, mktshare)
 	# mlnp = dot(lnp, mktshare)
 
 	# --- moments for XF (lambda): E(xf) & E(xf|k) ---
 	# mul!(xf_mnt, xf, mktshare)
-	mul!(view(mntvec, mnt_range[4]), xf, mktshare)
+	mul!(view(mntvec, mnt_range[3]), xf, mktshare)
 	broadcast!(*, nalt_tmp, lftshare, mktshare)
 	# mul!(xf_mnt_lft, xf, nalt_tmp)
-	mul!(view(mntvec, mnt_range[5]), xf, nalt_tmp)
+	mul!(view(mntvec, mnt_range[4]), xf, nalt_tmp)
 	# xf_mnt_lft ./= pr_lft
-	broadcast!(/, view(mntvec, mnt_range[5]), view(mntvec, mnt_range[5]), pr_lft_h)
+	broadcast!(/, view(mntvec, mnt_range[4]), view(mntvec, mnt_range[4]), pr_lft_h)
 
 	# --- moments for income lnW: E(lnw) & E(lnw|k) ---
 	# mlnw = dot(lnw, mktshare)
 	# mlnw_lft = dot(lnw, nalt_tmp) / pr_lft
-	view(mntvec, mnt_range[6]) .= dot(lnw, mktshare)
-	view(mntvec, mnt_range[7]) .= dot(lnw, nalt_tmp) / pr_lft_h
+	view(mntvec, mnt_range[5]) .= dot(lnw, mktshare)
+	view(mntvec, mnt_range[6]) .= dot(lnw, nalt_tmp) / pr_lft_h
 
 	# --- moments for XL: E(xl|k=1) ---
 	# xl_mnt .= (uc_lft_pr / pr_lft) * xl
-	BLAS.axpy!((uc_lft_pr / pr_lft_h), xl, view(mntvec, mnt_range[8]))
+	BLAS.axpy!((uc_lft_pr / pr_lft_h), xl, view(mntvec, mnt_range[7]))
 
 	# --- moments for XT: E(xt|k=1) ---
 	# xt_mnt .= (uc_lft_pr / pr_lft) * xt
-	BLAS.axpy!((uc_lft_pr / pr_lft_h), xt, view(mntvec, mnt_range[9]))
+	BLAS.axpy!((uc_lft_pr / pr_lft_h), xt, view(mntvec, mnt_range[8]))
 
 	# ---  moments for XT: E(xt'lnw) and E(xt'xf) ---
 	# xt_lnw_mnt .= lnw_locpr * xt
-	BLAS.axpy!(dot(lnw, mktshare), xt, view(mntvec, mnt_range[10]))
-	mul!(xf_xt_p, view(mntvec, mnt_range[4]), xt')
-	view(mntvec, mnt_range[11]) .= vec(xf_xt_p) #<-- TODO: drop constant
+	BLAS.axpy!(dot(lnw, mktshare), view(xt, 2:nxt), view(mntvec, mnt_range[9])) #<-- NOTE: drop constant in xt
+	mul!(xf_xt_p, view(mntvec, mnt_range[3]), xt')
+	view(mntvec, mnt_range[10]) .= vec(view(xf_xt_p, 2:nxf, 2:nxt)) #<-- NOTE: drop constant
 
 	# --- E(xq'lnq | k = 0), E(lnw lnq | k = 0) ---
 	broadcast!((x, y, z, u) -> x + y / (u - z), lnq_mig, lnq_mig, lnqrnd_migj, pr_lft_alt_h, unit)
 	broadcast!(*, nalt_tmp, lnq_mig, mktshare)
 	# mul!(xq_lnq_mig, xq, nalt_tmp)
-	mul!(view(mntvec, mnt_range[16]), xq, nalt_tmp)
+	mul!(view(mntvec, mnt_range[15]), xq, nalt_tmp)
 	# lnwq_mig = dot(lnw, nalt_tmp)
-	view(mntvec, mnt_range[18]) .= dot(lnw, nalt_tmp)
+	view(mntvec, mnt_range[17]) .= dot(lnw, nalt_tmp)
 
 	# --- E(lnq^2 | k = 0) ---
 	# lnq2_mig = dot(lnq_mig, nalt_tmp)
-	view(mntvec, mnt_range[20]) .= dot(lnq_mig, nalt_tmp)
+	view(mntvec, mnt_range[19]) .= dot(lnq_mig, nalt_tmp)
 
 	# --- E(xq'lnq | k = 1), E(lnw lnq | k = 1) ---
 	broadcast!((x, y, z) -> x + y / z, lnq_lft, lnq_lft, lnqrnd_lftj, pr_lft_alt_h)
 	broadcast!(*, nalt_tmp, lnq_lft, mktshare)
 	# mul!(xq_lnq_lft, xq, nalt_tmp)
-	mul!(view(mntvec, mnt_range[17]), xq, nalt_tmp)
+	mul!(view(mntvec, mnt_range[16]), xq, nalt_tmp)
 	# lnwq_lft = dot(lnw, nalt_tmp)
-	view(mntvec, mnt_range[19]) .= dot(lnw, nalt_tmp)
+	view(mntvec, mnt_range[18]) .= dot(lnw, nalt_tmp)
 
 	# --- E(lnq^2 | k = 1) ---
 	# lnq2_lft = dot(lnq_lft, nalt_tmp)
-	view(mntvec, mnt_range[21]) .= dot(lnq_lft, nalt_tmp)
+	view(mntvec, mnt_range[20]) .= dot(lnq_lft, nalt_tmp)
 
-	# vcat(lftshare, xm_mnt, mlnp, xf_mnt, xf_mnt_lft, mlnw, mlnw_lft, xl_mnt, xt_mnt,
+	# vcat(lftshare, xm_mnt, xf_mnt, xf_mnt_lft, mlnw, mlnw_lft, xl_mnt, xt_mnt,
 	# 	 xt_lnw_mnt, zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zlnqx_mnt, xq_lnq_mig, xq_lnq_lft,
 	# 	 lnwq_mig, lnwq_lft, lnq2_mig, lnq2_lft)
 end
@@ -361,7 +368,7 @@ function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 	 rhoq = tanh(parm[nxt + nxl + nxm + nxf + nxq + nzr + 5])
 	 sigq = exp(parm[nxt + nxl + nxm + nxf + nxq + nzr + 6])
 
-	 mnt_idx = [nalt, nxm, 1, nxf, nxf, 1, 1, nxl, nxt, nxt, nxf * nxt,
+	 mnt_idx = [nalt, nxm, nxf, nxf, 1, 1, nxl, nxt, nxt - 1, (nxf - 1) * (nxt - 1),
 	 			nzr, nzr, nzr, nzr, nxq, nxq, 1, 1, 1, 1]
 	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, mnt_idx)
 end
