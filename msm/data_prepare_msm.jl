@@ -1,5 +1,8 @@
 using DataFrames
-function data_prepare(df::AbstractDataFrame; trs::Bool = false)
+function data_prepare(df::AbstractDataFrame; lnWname::Symbol, QJname::Symbol,
+                      XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
+                      XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol},
+                      XQnames::AbstractVector{Symbol}, trs::Bool = false)
     ndt = nrow(df)
     city_alts = Vector{Int64}(df[:city_alts])
     nalt = length(unique(city_alts))
@@ -10,10 +13,10 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
 
     htvec = Vector{Int}(df[df[:chosen] .== 1, :hhtype])
 
-    lnW = Vector{Float64}(df[:lnhinc_alts])
+    lnW = Vector{Float64}(df[lnWname])
     lnW = lnW .- mean(lnW, weights(Vector{Float64}(df[:w_l])))
     lnP = Vector{Float64}(df[:lnhprice])
-    lnQX = Vector{Float64}(df[:tstu2_ratio])
+    lnQX = Vector{Float64}(df[QJname])
     wgt = Vector{Float64}(df[df[:chosen] .== 1, :w_l])
 
     sgwgt = countmap(htvec, weights(wgt))
@@ -42,28 +45,28 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
     pr_lft = pr_lft[:x1]
 
     # --- household preference ---
-    XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
+    # XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
     XT = [ones(nind) convert(Array{Float64, 2}, df[df[:chosen] .== 1, XTnames])]
 
     # --- migration cost ---
-    XMnames = names(df)[(end - 17):(end - 4)]
+    # XMnames = names(df)[(end - 17):(end - 4)]
     XM = convert(Array{Float64, 2}, df[XMnames])
 
     # --- left-behind utility loss ---
-    XLnames = [:cfemale, :nchild, :cagey, :cageysq]
+    # XLnames = [:cfemale, :nchild, :cagey, :cageysq]
     XL = [ones(nind) convert(Array{Float64, 2}, df[df[:chosen] .== 1, XLnames])]
 
     # --- fixed cost ---
     # NOTE: the most critical part of the model!!
-    XFnames = [:treat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
-               :lnmnw_city, :nchild_lnmw, :nchild_lnhp]
+    # XFnames = [:treat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
+    #            :lnmnw_city, :nchild_lnmw, :nchild_lnhp]
     XF = [ones(ndt) convert(Array{Float64, 2}, df[XFnames])]
 
     # --- cognitive ability ---
     # TODO: how to incorporate regional eduation quality?
     #       we have identification problem.
 
-    XQnames = [:cfemale, :cagey, :nchild, :tstu2_ratio]
+    # XQnames = [:cfemale, :cagey, :nchild, :tstu2_ratio]
     XQ = [ones(ndt) convert(Array{Float64, 2}, df[XQnames])]
 
     if trs == true

@@ -2,16 +2,16 @@
 ## Calculate Data moments
 ##
 
-function data_moments_leftbh(LeftbhData::AbstractDataFrame, XTnames::AbstractVector{Symbol},
-							 XLnames::AbstractVector{Symbol}, XFnames::AbstractVector{Symbol},
-							 XMnames::AbstractVector{Symbol},
-							 lnWname::Symbol, nalt::Int)
+function data_moments_leftbh(LeftbhData::AbstractDataFrame, lnWname::Symbol，
+							 XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
+							 XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol})
 
     mydf = view(LeftbhData, LeftbhData[:chosen] .== 1, :)
     choice = Vector{Int}(LeftbhData[:chosen])
     leftbh = Vector{Int}(LeftbhData[:child_leftbh])
 	lnW = Vector{Float64}(LeftbhData[lnWname])
 	wgtvec = Vector{Float64}(LeftbhData[:w_l])
+	lnW = lnW .- mean(lnW, weights(wgtvec))
 
     # --- (1) type-specific left-behind probabilities in each city ---
     pr_lft_alt = by(mydf, [:treat, :city_alts], sort = true) do df
@@ -59,6 +59,9 @@ end
 function data_moments_zcog(MigBootData::AbstractDataFrame, lnWname::Symbol,
 						   lnQname::Symbol, QJname::Symbol,
 						   Znames::AbstractVector{Symbol}, XQnames::AbstractVector{Symbol})
+	##
+	## NOTE: QJname should be included in XQnames
+	##
 
 	# --- moments for zshk: E(z|k) ---
 	zm_mnt = by(MigBootData, :leftbh, df -> colwise(mean, dropmissing(df[Znames])), sort = true)[:x1]

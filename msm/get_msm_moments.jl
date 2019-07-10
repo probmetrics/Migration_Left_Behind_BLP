@@ -306,7 +306,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	# xt_mnt .= (uc_lft_pr / pr_lft) * xt
 	BLAS.axpy!((uc_lft_pr / pr_lft_h), xt, view(mntvec, mnt_range[8]))
 
-	# ---  moments for XT: E(xt'lnw) and E(xt'xf) ---
+	# ---  moments for XT: E(xt'lnw) and E(xf xt') ---
 	# xt_lnw_mnt .= lnw_locpr * xt
 	BLAS.axpy!(dot(lnw, mktshare), view(xt, 2:nxt), view(mntvec, mnt_range[9])) #<-- NOTE: drop constant in xt
 	mul!(xf_xt_p, view(mntvec, mnt_range[3]), xt')
@@ -337,8 +337,8 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	view(mntvec, mnt_range[20]) .= dot(lnq_lft, nalt_tmp)
 
 	# vcat(lftshare, xm_mnt, xf_mnt, xf_mnt_lft, mlnw, mlnw_lft, xl_mnt, xt_mnt,
-	# 	 xt_lnw_mnt, zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zlnqx_mnt, xq_lnq_mig, xq_lnq_lft,
-	# 	 lnwq_mig, lnwq_lft, lnq2_mig, lnq2_lft)
+	# 	   xt_lnw_mnt, xf_xt_p, zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zlnqx_mnt, 
+	# 	   xq_lnq_mig, xq_lnq_lft, lnwq_mig, lnwq_lft, lnq2_mig, lnq2_lft)
 end
 
 function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},

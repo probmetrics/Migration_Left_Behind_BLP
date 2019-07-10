@@ -4,7 +4,7 @@ WKDIR = "E:/Dropbox/GitHub/Migration_Left_Behind_BLP"
 
 include("$WKDIR/utility_funs/obj_helper_funs.jl")
 include("$WKDIR/msm/data_prepare_msm.jl")
-# include("msl_llk.jl")
+include("$WKDIR/msm/get_msm_moments.jl")
 # include("$WKDIR/msl/msl_llk_loop.jl")
 # include("$WKDIR/utility_funs/squarem_helper_funs.jl")
 # include("$WKDIR/utility_funs/blp_squarem.jl")
@@ -59,13 +59,20 @@ QSHK = USHK[:, 2]
 USHK = USHK[:, 1]
 
 ##
-## 3. search for initial values
+## 3. Calculate Data Moments
 ##
+include("calc_data_moments.jl")
 
 XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
 XFnames = [:treat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
 		   :lnmnw_city, :nchild_lnmw, :nchild_lnhp]
 XLnames = [:cfemale, :nchild, :cagey, :cageysq]
+
+##
+## 4. search for initial values
+##
+
+
 lftvar = [XTnames; XFnames; XLnames]
 lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))))
 lft_fit = glm(lft_form, view(LeftbhData, YL .== 1, :),
@@ -73,7 +80,7 @@ lft_fit = glm(lft_form, view(LeftbhData, YL .== 1, :),
 lft_init = coef(lft_fit)
 
 ##
-## 4. Evaluate the likelihood
+## 5. Evaluate the moment conditions
 ##
 
 nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
@@ -94,28 +101,30 @@ initval = [xt_init; 0.0; xl_init; xm_init; 0.0; xf_init; blft; bw; bitr;
 # 			 XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; biter = 3)
 
 # --- evaluate moment conditions ---
-@time get_moments(initval, alpha, lnW, lnP, lnQX, XT, XL, XM, XF, XQ, ZSHK,
+# 6.5s
+@time mnt_serial = get_moments(initval, alpha, lnW, lnP, lnQX, XT, XL, XM, XF, XQ, ZSHK,
 				  USHK, QSHK, pr_lft, pr_lft_alt, Delta_init, dgvec, htvec, wgt,
 				  sgwgt, nind, nalt, nsim; xdim = 1)
 
-# 430352.6129; 5.2s
-#
-# @time mig_leftbh_llk_thread(initval, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
-# 			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
-# # 430352.6129; 0.8s for 8 threads
-#
+# 1.1s for 8 threads
+@time mnt_thread = get_moments_thread(initval, alpha, lnW, lnP, lnQX, XT, XL, XM, XF, XQ, ZSHK,
+				  USHK, QSHK, pr_lft, pr_lft_alt, Delta_init, dgvec, htvec, wgt,
+				  sgwgt, nind, nalt, nsim; xdim = 1)
+
 # # --- test for ForwardDiff ---
 # using Optim, ForwardDiff
-# llk_opt = parm -> mig_leftbh_llk(parm, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF,
-# 			   					 XQ, ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
-# @time llk_opt(initval)
-# @time gr = ForwardDiff.gradient(llk_opt, initval)
+# msm_opt = parm -> get_moments(parm, alpha, lnW, lnP, lnQX, XT, XL, XM, XF, XQ,
+# 				  	ZSHK, USHK, QSHK, pr_lft, pr_lft_alt, Delta_init, dgvec, htvec,
+# 				  	wgt, sgwgt, nind, nalt, nsim; xdim = 1)
+# @time msm_opt(initval)
+# @time gr = ForwardDiff.gradient(msm_opt, initval)
 #
-# llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, Delta_init, YL, YM, lnW, lnP,
-# 											   XT, XL, XM, XF, XQ, ZSt, USHK, wgt,
-# 											   nind, nalt, nsim, dgvec, 0.12, 1)
-# @time llk_opt_thread(initval)
-# @time gr = ForwardDiff.gradient(llk_opt_thread, initval)
+# msm_opt_thread = parm -> get_moments_thread(parm, alpha, lnW, lnP, lnQX, XT, XL,
+# 				  	XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft, pr_lft_alt, Delta_init,
+# 				  	dgvec, htvec, wgt, sgwgt, nind, nalt, nsim; xdim = 1)
+# @time msm_opt_thread(initval)
+# @time gr = ForwardDiff.gradient(msm_opt_thread, initval)
+
 #
 # # --- predicted location choice probabilities ---
 # ngrp = length(sgwgt)
