@@ -1,3 +1,23 @@
+function msm_obj(parm, data_mnts::AbstractVector{T}, wt::AbstractMatrix{T},
+				 alpha::T, lnW::AbstractVector{T}, lnP::AbstractVector{T},
+				 lnQX::AbstractVector{T}, XT::AbstractMatrix{T},
+				 XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
+				 XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
+				 ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T}, QSHK::AbstractVector{T},
+				 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
+				 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
+				 htvec::AbstractVector{Int}, wgt::AbstractVector{T},
+				 sgwgt::AbstractVector{T}, nind::Int, nalt::Int,
+				 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
+
+	mnt_par = get_moments_thread(parm, alpha, lnW, lnP, lnQX, XT, XL, XM, XF, XQ,
+								 ZSHK, USHK, QSHK, pr_lft, pr_lft_alt, Delta_init,
+								 dgvec, htvec, wgt, sgwgt, nind, nalt, nsim; xdim = xdim)
+	gmnt = mnt_par - data_mnts
+	obj = gmnt' * wt * gmnt
+ 	return obj
+end
+
 function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 					 lnP::AbstractVector{T}, lnQX::AbstractVector{T},
 					 XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
@@ -10,7 +30,8 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 					 sgwgt::AbstractVector{T}, nind::Int, nalt::Int,
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, mnt_idx =
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz,
+	sigu, rhoq, sigq, mnt_idx, mnt_drop =
 			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
 
 	# --- common variables ---
@@ -69,9 +90,11 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 
 	sum!(mntmat, mntmat_all)
 	broadcast!(/, mntmat, mntmat, sgwgt')
-	# mnt_par = mean(view(mntmat, (nalt + 1):mnt_len, :), weights(sgwgt), dims = 2)
-	# prepend!(mnt_par, vec(mntmat[1:nalt, :]))
-	return mntmat
+
+	# NOTE: remove constants in XF, XF_lft, XL_lft, and XT_lft
+	mnt_par = vec(mean(view(mntmat, setdiff(1:mnt_len, mnt_drop), :), weights(sgwgt), dims = 2))
+	prepend!(mnt_par, vec(mntmat[1:nalt, :]))
+	return mnt_par
 end
 
 
@@ -87,7 +110,8 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 					 sgwgt::AbstractVector{T}, nind::Int, nalt::Int,
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, mnt_idx =
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz,
+	sigu, rhoq, sigq, mnt_idx, mnt_drop =
 			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
 
 	TT = promote_type(eltype(parm), eltype(lnW))
@@ -135,9 +159,12 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 	end
 
 	broadcast!(/, mntmat, mntmat, sgwgt')
-	# mnt_par = mean(view(mntmat, (nalt + 1):mnt_len, :), weights(sgwgt), dims = 2)
-	# prepend!(mnt_par, vec(mntmat[1:nalt, :]))
-	return mntmat
+
+	# NOTE: remove constants in XF, XF_lft, XL_lft, and XT_lft
+	mnt_par = vec(mean(view(mntmat, setdiff(1:mnt_len, mnt_drop), :), weights(sgwgt), dims = 2))
+	prepend!(mnt_par, vec(mntmat[1:nalt, :]))
+
+	return mnt_par
 end
 
 #
@@ -337,7 +364,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	view(mntvec, mnt_range[20]) .= dot(lnq_lft, nalt_tmp)
 
 	# vcat(lftshare, xm_mnt, xf_mnt, xf_mnt_lft, mlnw, mlnw_lft, xl_mnt, xt_mnt,
-	# 	   xt_lnw_mnt, xf_xt_p, zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zlnqx_mnt, 
+	# 	   xt_lnw_mnt, xf_xt_p, zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zlnqx_mnt,
 	# 	   xq_lnq_mig, xq_lnq_lft, lnwq_mig, lnwq_lft, lnq2_mig, lnq2_lft)
 end
 
@@ -370,7 +397,9 @@ function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 
 	 mnt_idx = [nalt, nxm, nxf, nxf, 1, 1, nxl, nxt, nxt - 1, (nxf - 1) * (nxt - 1),
 	 			nzr, nzr, nzr, nzr, nxq, nxq, 1, 1, 1, 1]
-	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, mnt_idx)
+	 mnt_drop = [collect(1:nalt); nalt + nxm + 1; nalt + nxm + nxf + 1;
+	 			 nalt + nxm + 2*nxf + 3; nalt + nxm + 2*nxf + 3 + nxl]
+	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, mnt_idx, mnt_drop)
 end
 
 function get_mnt_range(mnt_idx::AbstractVector{T}) where T <: Int
