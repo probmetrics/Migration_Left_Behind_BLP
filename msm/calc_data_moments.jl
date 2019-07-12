@@ -2,19 +2,67 @@
 ## Calculate Data moments
 ##
 
-function data_moments_leftbh(LeftbhData::AbstractDataFrame, lnWname::Symbol，
+using RCall
+function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol,
+					  XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
+					  XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol},
+					  mnt_len::Int; nboot::Int = 200)
+	nd = nrow(df)
+
+	@rput nd nboot
+	R"""
+	df <- data.frame(idx = 1:nd)
+	set.seed(20190712)
+	df_boot <- resamplr::balanced_bootstrap(df, nboot)
+	boot_idx_mat <- sapply(df_boot$sample, function(x) x$idx)
+	"""
+	@rget boot_idx_mat
+
+	leftbh_bsmnt_mat = zeros(mnt_len, nboot)
+	for b = 1:nboot
+		bsdf = view(df, view(boot_idx_mat, :, b), :)
+		view(leftbh_bsmnt_mat, :, b) .= data_moments_leftbh(bsdf, lnWname, XTnames,
+														  XLnames, XFnames, XMnames)
+	end
+	return leftbh_bsmnt_mat
+end
+
+using Rcall
+function bs_zcog_mnts(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
+					  QJname::Symbol, Znames::AbstractVector{Symbol},
+					  XQnames::AbstractVector{Symbol}, mnt_len::Int;
+					  nboot::Int = 200)
+	nd = nrow(df)
+
+	@rput nd nboot
+	R"""
+	df <- data.frame(idx = 1:nd)
+	set.seed(20190712)
+	df_boot <- resamplr::balanced_bootstrap(df, nboot)
+	boot_idx_mat <- sapply(df_boot$sample, function(x) x$idx)
+	"""
+	@rget boot_idx_mat
+
+	zcog_bsmnt_mat = zeros(mnt_len, nboot)
+	for b = 1:nboot
+		bsdf = view(df, view(boot_idx_mat, :, b), :)
+		view(zcog_bsmnt_mat, :, b) .= data_moments_zcog(bsdf, lnWname, lnQname,
+														QJname, Znames, XQnames)
+	end
+	return zcog_bsmnt_mat
+end
+
+function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol,
 							 XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
 							 XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol})
 
-    mydf = view(LeftbhData, LeftbhData[:chosen] .== 1, :)
-    choice = Vector{Int}(LeftbhData[:chosen])
-    leftbh = Vector{Int}(LeftbhData[:child_leftbh])
-	lnW = Vector{Float64}(LeftbhData[lnWname])
-	wgtvec = Vector{Float64}(LeftbhData[:w_l])
+    leftbh = Vector{Int}(df[:child_leftbh])
+	lnW = Vector{Float64}(df[lnWname])
+	wgtvec = Vector{Float64}(df[:w_l])
 	lnW = lnW .- mean(lnW, weights(wgtvec))
 
     # --- (1) type-specific left-behind probabilities in each city ---
-    pr_lft_alt = by(mydf, [:treat, :city_alts], sort = true) do df
+    pr_lft_alt = by(df, [:treat, :city_alts], sort = true) do df
         vleft = Vector{Float64}(df[:child_leftbh])
         wt = Vector{Float64}(df[:w_l])
         mean(vleft, weights(wt))
@@ -22,39 +70,36 @@ function data_moments_leftbh(LeftbhData::AbstractDataFrame, lnWname::Symbol，
     pr_lft_alt = pr_lft_alt[:x1]
 
     # --- (2) data moments for XM ---
-    XM_mnt = colwise(x -> mean(x, weights(view(wgtvec, choice .== 1))), view(mydf, XMnames))
+    XM_mnt = colwise(x -> mean(x, weights(wgtvec)), view(df, XMnames))
 
     # --- (3) data moments for XF and XF_lft ---
-	XF_mnt = colwise(x -> mean(x, weights(view(wgtvec, choice .== 1))), view(mydf, XFnames))
-	XF_lft_mnt = colwise(x -> mean(x, weights(view(wgtvec, (choice .== 1) .& (leftbh .== 1)))),
-						view(mydf, mydf[:child_leftbh] .== 1, XFnames))
+	XF_mnt = colwise(x -> mean(x, weights(wgtvec)), view(df, XFnames))
+	XF_lft_mnt = colwise(x -> mean(x, weights(view(wgtvec, leftbh .== 1))),
+						view(df, df[:child_leftbh] .== 1, XFnames))
 
     # --- (4) data moments for lnW and lnW_lft ---
-	lnW_mnt = mean(view(lnW, choice .== 1), weights(view(wgtvec, choice .== 1)))
-	lnW_lft_mnt = mean(view(lnW, (choice .== 1) .& (leftbh .== 1)),
-					   weights(view(wgtvec, (choice .== 1) .& (leftbh .== 1))))
+	lnW_mnt = mean(lnW, weights(wgtvec))
+	lnW_lft_mnt = mean(view(lnW, leftbh .== 1), weights(view(wgtvec, leftbh .== 1)))
 
     # --- (5) data moments for XL_lft ---
-	XL_lft_mnt = colwise(x -> mean(x, weights(view(wgtvec, (choice .== 1) .& (leftbh .== 1)))),
-						 view(mydf, mydf[:child_leftbh] .== 1, XLnames))
+	XL_lft_mnt = colwise(x -> mean(x, weights(view(wgtvec, leftbh .== 1))),
+						 view(df, df[:child_leftbh] .== 1, XLnames))
 
     # --- (6) data moments for XT_lft ---
-	XT_lft_mnt = colwise(x -> mean(x, weights(view(wgtvec, (choice .== 1) .& (leftbh .== 1)))),
-						 view(mydf, mydf[:child_leftbh] .== 1, XTnames))
+	XT_lft_mnt = colwise(x -> mean(x, weights(view(wgtvec, leftbh .== 1))),
+						 view(df, df[:child_leftbh] .== 1, XTnames))
 
 	# --- (7) data moments for XT'lnW and XF XT' ---
-	XT_lnW_mnt = colwise(x -> mean(x .* view(lnW, choice .== 1), weights(view(wgtvec, (choice .== 1)))),
-						view(mydf, XTnames))
+	XT_lnW_mnt = colwise(x -> mean(x .* lnW, weights(wgtvec)), view(df, XTnames))
 
-	XF_XT_mnt = Matrix{Float64}(view(mydf, XFnames))' * (Matrix{Float64}(view(mydf, XTnames)) .*
-				view(wgtvec, choice .== 1)) / sum(view(wgtvec, choice .== 1))
+	XF_XT_mnt = Matrix{Float64}(view(df, XFnames))' * (Matrix{Float64}(view(df, XTnames)) .*
+				wgtvec) / sum(wgtvec)
 	XF_XT_mnt = vec(XF_XT_mnt)
 
 	leftbh_mnt = vcat(pr_lft_alt, XM_mnt, XF_mnt, XF_lft_mnt, lnW_mnt, lnW_lft_mnt,
 					  XL_lft_mnt, XT_lft_mnt, XT_lnW_mnt, XF_XT_mnt)
  	return leftbh_mnt
 end
-
 
 function data_moments_zcog(MigBootData::AbstractDataFrame, lnWname::Symbol,
 						   lnQname::Symbol, QJname::Symbol,

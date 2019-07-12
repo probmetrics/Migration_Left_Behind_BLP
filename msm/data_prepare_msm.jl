@@ -1,8 +1,8 @@
 using DataFrames
-function data_prepare(df::AbstractDataFrame; lnWname::Symbol, QJname::Symbol,
+function data_prepare(df::AbstractDataFrame, lnWname::Symbol, QJname::Symbol,
                       XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
                       XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol},
-                      XQnames::AbstractVector{Symbol}, trs::Bool = false)
+                      XQnames::AbstractVector{Symbol}; trs::Bool = false)
     ndt = nrow(df)
     city_alts = Vector{Int64}(df[:city_alts])
     nalt = length(unique(city_alts))
