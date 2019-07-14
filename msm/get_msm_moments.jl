@@ -1,4 +1,4 @@
-function msm_obj(parm, data_mnts::AbstractVector{T}, wt::AbstractMatrix{T},
+function msm_obj(parm, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 alpha::T, lnW::AbstractVector{T}, lnP::AbstractVector{T},
 				 lnQX::AbstractVector{T}, XT::AbstractMatrix{T},
 				 XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
@@ -6,15 +6,18 @@ function msm_obj(parm, data_mnts::AbstractVector{T}, wt::AbstractMatrix{T},
 				 ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T}, QSHK::AbstractVector{T},
 				 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
 				 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
-				 htvec::AbstractVector{Int}, wgt::AbstractVector{T},
-				 sgwgt::AbstractVector{T}, nind::Int, nalt::Int,
+				 htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
+				 wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+				 swgt9::T, nind::Int, nalt::Int,
 				 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
 	mnt_par = get_moments_thread(parm, alpha, lnW, lnP, lnQX, XT, XL, XM, XF, XQ,
 								 ZSHK, USHK, QSHK, pr_lft, pr_lft_alt, Delta_init,
-								 dgvec, htvec, wgt, sgwgt, nind, nalt, nsim; xdim = xdim)
+								 dgvec, htvec, dage9vec, wgt, sgwgt, swgt9, nind,
+								 nalt, nsim; xdim = xdim)
 	gmnt = mnt_par - data_mnts
-	obj = gmnt' * wt * gmnt
+	broadcast!(*, gmnt, gmnt, dwt, gmnt)
+	obj = sum(gmnt)
  	return obj
 end
 
@@ -26,12 +29,13 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 					 USHK::AbstractVector{T}, QSHK::AbstractVector{T},
 					 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
 					 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
-					 htvec::AbstractVector{Int}, wgt::AbstractVector{T},
-					 sgwgt::AbstractVector{T}, nind::Int, nalt::Int,
+					 htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
+					 wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+					 swgt9::T, nind::Int, nalt::Int,
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz,
-	sigu, rhoq, sigq, mnt_idx, mnt_drop =
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu,
+	rhoq, sigq, mnt_idx, mnt_drop, mnt_cage9 =
 			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
 
 	# --- common variables ---
@@ -73,6 +77,7 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 			sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 			g = view(dgvec, i)
 			ht = htvec[i]
+			dage9 = dage9vec[i]
 
 			individual_mnts!(mntvec_thread, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
 							 locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, xf_xt_p, # <-- containers
@@ -81,7 +86,7 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 							 alpha, view(Delta, :, g), pr_lft[ht], view(pr_lft_alt, :, ht),
 							 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
 							 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
-							 view(lnQX, ind_sel), view(XQ, :, ind_sel), view(ZSHK, :, sim_sel),
+							 view(lnQX, ind_sel), view(XQ, :, ind_sel), dage9, view(ZSHK, :, sim_sel),
 							 view(USHK, sim_sel), view(QSHK, sim_sel), nalt, nsim, unit)
 			BLAS.axpy!(wgt[i], mntvec_thread, view(mntmat_thread, :, ht))
 		end
@@ -89,10 +94,15 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 	end
 
 	sum!(mntmat, mntmat_all)
-	broadcast!(/, mntmat, mntmat, sgwgt')
+	under9 = setdiff(1:mnt_len, mnt_cage9)
+	broadcast!(/, view(mntmat, under9, :), view(mntmat, under9, :), sgwgt')
 
 	# NOTE: remove constants in XF, XF_lft, XL_lft, and XT_lft
-	mnt_par = vec(mean(view(mntmat, setdiff(1:mnt_len, mnt_drop), :), weights(sgwgt), dims = 2))
+	mnt_par = vec(mean(view(mntmat, setdiff(1:mnt_len, [mnt_drop; mnt_cage9]), :),
+					  weights(sgwgt), dims = 2))
+	mnt_par_cage9 = view(mntmat, mnt_cage9, 2) / swgt9
+
+	append!(mnt_par, mnt_par_cage9)
 	prepend!(mnt_par, vec(mntmat[1:nalt, :]))
 	return mnt_par
 end
@@ -106,12 +116,13 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 					 USHK::AbstractVector{T}, QSHK::AbstractVector{T},
 					 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
 					 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
-					 htvec::AbstractVector{Int}, wgt::AbstractVector{T},
-					 sgwgt::AbstractVector{T}, nind::Int, nalt::Int,
+					 htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
+					 wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+					 swgt9::T, nind::Int, nalt::Int,
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz,
-	sigu, rhoq, sigq, mnt_idx, mnt_drop =
+	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu,
+	rhoq, sigq, mnt_idx, mnt_drop, mnt_cage9 =
 			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
 
 	TT = promote_type(eltype(parm), eltype(lnW))
@@ -145,6 +156,7 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 		g = view(dgvec, i)
 		ht = htvec[i]
+		dage9 = dage9vec[i]
 
 		individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
 						 locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, xf_xt_p, # <-- containers
@@ -153,30 +165,32 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 		  				 alpha, view(Delta, :, g), pr_lft[ht], view(pr_lft_alt, :, ht),
 						 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
 						 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
-						 view(lnQX, ind_sel), view(XQ, :, ind_sel), view(ZSHK, :, sim_sel),
+						 view(lnQX, ind_sel), view(XQ, :, ind_sel), dage9, view(ZSHK, :, sim_sel),
 						 view(USHK, sim_sel), view(QSHK, sim_sel), nalt, nsim, unit)
 		BLAS.axpy!(wgt[i], mntvec, view(mntmat, :, ht))
 	end
 
-	broadcast!(/, mntmat, mntmat, sgwgt')
+	under9 = setdiff(1:mnt_len, mnt_cage9)
+	broadcast!(/, view(mntmat, under9, :), view(mntmat, under9, :), sgwgt')
 
 	# NOTE: remove constants in XF, XF_lft, XL_lft, and XT_lft
-	mnt_par = vec(mean(view(mntmat, setdiff(1:mnt_len, mnt_drop), :), weights(sgwgt), dims = 2))
-	prepend!(mnt_par, vec(mntmat[1:nalt, :]))
+	mnt_par = vec(mean(view(mntmat, setdiff(1:mnt_len, [mnt_drop; mnt_cage9]), :),
+					  weights(sgwgt), dims = 2))
+	mnt_par_cage9 = view(mntmat, mnt_cage9, 2) / swgt9
 
+	append!(mnt_par, mnt_par_cage9)
+	prepend!(mnt_par, vec(mntmat[1:nalt, :]))
 	return mnt_par
 end
 
-#
-# mnt_len = nXM + (nalt * 2 + nalt * nXF * 2) + nXL + J * nXT
-#		  + nZS * 2 + nZS * (lnW + ZQj) * 2 + (nXQ + lnW) * 2 + 2
 #
 # NOTE:
 #	1. moments do NOT include location choice probabilities,
 #	   this part of moments help to identify deltas, which
 #	   is calculated by BLP contraction mapping.
-# 	2. combine moments for constant and xvars in XF
-#	3. dont't miss moments for lnW
+# 	2. moments for lnQ SHOULD BE adjusted for age 9 and above only
+#   3. lnW is de-meaned by average wage in age 9
+#	4. dont't miss moments for lnW
 #
 using StatsFuns:log1pexp, logistic
 using LinearAlgebra:dot
@@ -185,9 +199,9 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 						  xbm, ln1mlam, xbq, dlnq, lnq_mig, lnq_lft, zbr, #<-- containers again
 						  bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, #<-- endogeneous params
   						  alpha, delta,	pr_lft_h, pr_lft_alt_h, lnw, lnp, xt, xl, xm, xf,  #<-- exogeneous params and data
-						  lnqx, xq, zshk, ushk, qshk, nalt, nsim, unit)
+						  lnqx, xq, dage9, zshk, ushk, qshk, nalt, nsim, unit)
 	##
-	## mntvec = nalt + (nXM + nlnP) + 2*nXF + 2*lnW + nXL + nXT + 2*nZS
+	## mntvec = nalt + nXM + 2*nXF + 2*lnW + nXL + nXT + 2*nZS
 	##		  + nZS * (lnW + ZQj) + 2*(nXQ + lnW) + 2
 	##
 
@@ -341,7 +355,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 
 	# --- E(xq'lnq | k = 0), E(lnw lnq | k = 0) ---
 	broadcast!((x, y, z, u) -> x + y / (u - z), lnq_mig, lnq_mig, lnqrnd_migj, pr_lft_alt_h, unit)
-	broadcast!(*, nalt_tmp, lnq_mig, mktshare)
+	broadcast!(*, nalt_tmp, lnq_mig, mktshare, dage9)
 	# mul!(xq_lnq_mig, xq, nalt_tmp)
 	mul!(view(mntvec, mnt_range[15]), xq, nalt_tmp)
 	# lnwq_mig = dot(lnw, nalt_tmp)
@@ -353,7 +367,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 
 	# --- E(xq'lnq | k = 1), E(lnw lnq | k = 1) ---
 	broadcast!((x, y, z) -> x + y / z, lnq_lft, lnq_lft, lnqrnd_lftj, pr_lft_alt_h)
-	broadcast!(*, nalt_tmp, lnq_lft, mktshare)
+	broadcast!(*, nalt_tmp, lnq_lft, mktshare, dage9)
 	# mul!(xq_lnq_lft, xq, nalt_tmp)
 	mul!(view(mntvec, mnt_range[16]), xq, nalt_tmp)
 	# lnwq_lft = dot(lnw, nalt_tmp)
@@ -399,7 +413,10 @@ function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 	 			nzr, nzr, nzr, nzr, nxq, nxq, 1, 1, 1, 1]
 	 mnt_drop = [collect(1:nalt); nalt + nxm + 1; nalt + nxm + nxf + 1;
 	 			 nalt + nxm + 2*nxf + 3; nalt + nxm + 2*nxf + 3 + nxl]
-	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq, mnt_idx, mnt_drop)
+	 mnt_cage9 = collect((sum(mnt_idx) - 2*nxq - 3):sum(mnt_idx))
+
+	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq,
+	 		 mnt_idx, mnt_drop, mnt_cage9)
 end
 
 function get_mnt_range(mnt_idx::AbstractVector{T}) where T <: Int
