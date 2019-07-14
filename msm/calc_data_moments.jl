@@ -1,12 +1,12 @@
 
-function mnt_var_leftbh(df::AbstractDataFrame, lnWname::Symbol,
+function mnt_var_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 					  	XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
 					  	XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol},
 					  	mnt_len::Int; nboot::Int = 200)
 
-	leftbh_bsmnt_mat = bs_leftbh_mnts(df, lnWname, XTnames, XLnames, XFnames,
+	leftbh_bsmnt_mat = bs_leftbh_mnts(df, lnWname, cage9, XTnames, XLnames, XFnames,
 					  	  		  	  XMnames, mnt_len; nboot = nboot)
-	lb_mnt_nobs = dtmnts_nobs_leftbh(df, lnWname, XTnames, XLnames, XFnames, XMnames
+	lb_mnt_nobs = dtmnts_nobs_leftbh(df, lnWname, XTnames, XLnames, XFnames, XMnames)
 
 	lb_mnt_var = diag(cov(leftbh_bsmnt_mat, dims = 2)) .* lb_mnt_nobs
 	return lb_mnt_var
@@ -25,7 +25,7 @@ function mnt_var_zcog(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
 end
 
 using RCall
-function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol,
+function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 					  XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
 					  XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol},
 					  mnt_len::Int; nboot::Int = 200)
@@ -47,7 +47,7 @@ function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol,
 	leftbh_bs_mat = zeros(mnt_len, nboot)
 	for b = 1:nboot
 		bsdf = view(df, view(boot_idx_mat, :, b), :)
-		view(leftbh_bs_mat, :, b) .= data_moments_leftbh(bsdf, lnWname, XTnames,
+		view(leftbh_bs_mat, :, b) .= data_moments_leftbh(bsdf, lnWname, cage9, XTnames,
 														  XLnames, XFnames, XMnames)
 	end
 
@@ -83,14 +83,15 @@ function bs_zcog_mnts(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
 	return zcog_bsmnt_mat
 end
 
-function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol,
+function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 							 XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
 							 XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol})
 
     leftbh = Vector{Int}(df[:child_leftbh])
 	lnW = Vector{Float64}(df[lnWname])
 	wgtvec = Vector{Float64}(df[:w_l])
-	lnW = lnW .- mean(lnW, weights(wgtvec))
+	cage9d = Vector{Int}(df[cage9])
+	lnW = lnW .- mean(view(lnW, cage9d .== 1), weights(view(wgtvec, cage9d .== 1)))
 
     # --- (1) type-specific left-behind probabilities in each city ---
     pr_lft_alt = by(df, [:treat, :city_alts], sort = true) do df
@@ -208,8 +209,8 @@ function dtmnts_nobs_leftbh(df::AbstractDataFrame, lnWname::Symbol,
 	XF_XT_mnt_n = swt * ones(nXF * nXT)
 
 	leftbh_mnt_n = vcat(pr_lft_alt_n, XM_mnt_n, XF_mnt_n, XF_lft_mnt_n, lnW_mnt_n,
-					  lnW_lft_mnt_n, XL_lft_mnt_n, XT_lft_mnt_n, XT_lnW_mnt_n,
-					  XF_XT_mnt_n)
+					  	lnW_lft_mnt_n, XL_lft_mnt_n, XT_lft_mnt_n, XT_lnW_mnt_n,
+					  	XF_XT_mnt_n)
  	return leftbh_mnt_n
 end
 
