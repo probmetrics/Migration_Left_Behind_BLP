@@ -18,9 +18,12 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, QJname::Symbol,
     lnP = Vector{Float64}(df[:lnhprice])
     lnQX = Vector{Float64}(df[QJname])
     wgt = Vector{Float64}(df[df[:chosen] .== 1, :w_l])
+    dage9vec = Vector{Float64}(df[df[:chosen] .== 1, :cage9])
 
     sgwgt = countmap(htvec, weights(wgt))
     sgwgt = [sgwgt[i] for i = 1:length(sgwgt)]
+
+    swgt9 = countmap(htvec, weights(wgt .* dage9vec))[2]
 
     # --- initial value of delta ---
     cfreq = by(view(df, df[:chosen] .== 1, :), [:treat, :year, :city_alts], d -> sum(d[:w_l]))
@@ -77,6 +80,6 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, QJname::Symbol,
         XQ = copy(XQ')
     end
 
-    return(lnDataShare, Delta_init, lnW, lnP, lnQX, wgt, sgwgt, XT, XM, XL, XF, XQ,
-           pr_lft, pr_lft_alt, nalt, nind, dgvec, htvec)
+    return(lnDataShare, Delta_init, lnW, lnP, lnQX, wgt, sgwgt, swgt9, XT, XM, XL, XF, XQ,
+           pr_lft, pr_lft_alt, nalt, nind, dgvec, htvec, dage9vec)
 end
