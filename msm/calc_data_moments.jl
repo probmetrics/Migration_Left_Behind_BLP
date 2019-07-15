@@ -13,12 +13,11 @@ function mnt_var_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 end
 
 function mnt_var_zcog(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
-					  QJname::Symbol, Znames::AbstractVector{Symbol},
-					  XQnames::AbstractVector{Symbol}, mnt_len::Int;
-					  nboot::Int = 200)
-	zcog_bsmnt_mat = bs_zcog_mnts(df, lnWname, lnQname, QJname, Znames, XQnames,
+					  XQJMname::Symbol, XQJLname::Symbol, Znames::AbstractVector{Symbol},
+					  XQnames::AbstractVector{Symbol}, mnt_len::Int; nboot::Int = 200)
+	zcog_bsmnt_mat = bs_zcog_mnts(df, lnWname, lnQname, XQJMname, XQJLname, Znames, XQnames,
 				 				  mnt_len; nboot = nboot)
-	zcog_mnt_nobs = dtmnts_nobs_zcog(df, lnWname, lnQname, QJname, Znames, XQnames)
+	zcog_mnt_nobs = dtmnts_nobs_zcog(df, lnWname, lnQname, XQJMname, XQJLname, Znames, XQnames)
 
 	zcog_mnt_var = diag(cov(zcog_bsmnt_mat, dims = 2)) .* zcog_mnt_nobs
 	return zcog_mnt_var
@@ -56,9 +55,8 @@ end
 
 using RCall
 function bs_zcog_mnts(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
-					  QJname::Symbol, Znames::AbstractVector{Symbol},
-					  XQnames::AbstractVector{Symbol}, mnt_len::Int;
-					  nboot::Int = 200)
+					  XQJMname::Symbol, XQJLname::Symbol, Znames::AbstractVector{Symbol},
+					  XQnames::AbstractVector{Symbol}, mnt_len::Int; nboot::Int = 200)
 	##
 	## Boostrap moments for coginitive development data
 	##
@@ -77,7 +75,7 @@ function bs_zcog_mnts(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
 	for b = 1:nboot
 		bsdf = view(df, view(boot_idx_mat, :, b), :)
 		view(zcog_bsmnt_mat, :, b) .= data_moments_zcog(bsdf, lnWname, lnQname,
-														QJname, Znames, XQnames)
+														XQJMname, XQJLname, Znames, XQnames)
 	end
 
 	return zcog_bsmnt_mat
@@ -134,10 +132,10 @@ function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symb
 end
 
 function data_moments_zcog(df::AbstractDataFrame, lnWname::Symbol,
-						   lnQname::Symbol, QJname::Symbol,
+						   lnQname::Symbol, XQJMname::Symbol, XQJLname::Symbol,
 						   Znames::AbstractVector{Symbol}, XQnames::AbstractVector{Symbol})
 	##
-	## NOTE: QJname should be included in XQnames
+	## NOTE: XQJM and XQJL should NOT be included in XQs
 	##
 
 	# --- moments for zshk: E(z|k) ---
@@ -147,18 +145,22 @@ function data_moments_zcog(df::AbstractDataFrame, lnWname::Symbol,
 	tmp_df = dropmissing(df[[Znames; lnWname]], disallowmissing = true)
 	zlnw_mnt = colwise(x -> mean(x .* tmp_df[lnWname]), tmp_df[Znames])
 
-	# unconditional covariance: E(z'lnqx)
-	tmp_df = dropmissing(df[[Znames; QJname]], disallowmissing = true)
-	zlnqx_mnt = colwise(x -> mean(x .* tmp_df[QJname]), tmp_df[Znames])
+	# covariance: E(z'xqj | k)
+	tmp_df = dropmissing(df[[Znames; XQJMname; XQJLname; :leftbh]], disallowmissing = true)
+	zxqj_mig_mnt = colwise(x -> mean(x .* view(tmp_df, tmp_df[:leftbh] .== 0, XQJMname)),
+							view(tmp_df, tmp_df[:leftbh] .== 0, Znames))
+	zxqj_lft_mnt = colwise(x -> mean(x .* view(tmp_df, tmp_df[:leftbh] .== 1, XQJLname)),
+							view(tmp_df, tmp_df[:leftbh] .== 1, Znames))
 
 	# --- E(lnq|k) & E(xq'lnq | k) ---
-	tmp_df = dropmissing(df[[XQnames; lnQname; lnWname; :leftbh]], disallowmissing = true)
+	tmp_df = dropmissing(df[[XQnames; XQJMname; XQJLname; lnQname; lnWname; :leftbh]],
+							disallowmissing = true)
 
 	lnq_mnt = by(tmp_df, :leftbh, sdf -> mean(sdf[lnQname]), sort = true)[:x1]
 	xq_lnq_mig = colwise(x -> mean(x .* view(tmp_df, tmp_df[:leftbh] .== 0, lnQname)),
-						view(tmp_df, tmp_df[:leftbh] .== 0, XQnames))
+						view(tmp_df, tmp_df[:leftbh] .== 0, [XQnames; XQJMname]))
 	xq_lnq_lft = colwise(x -> mean(x .* view(tmp_df, tmp_df[:leftbh] .== 1, lnQname)),
-						view(tmp_df, tmp_df[:leftbh] .== 1, XQnames))
+						view(tmp_df, tmp_df[:leftbh] .== 1, [XQnames; XQJLname]))
 
 	xq_lnq_mnt = [lnq_mnt[1]; xq_lnq_mig; lnq_mnt[2]; xq_lnq_lft]
 
@@ -168,7 +170,7 @@ function data_moments_zcog(df::AbstractDataFrame, lnWname::Symbol,
 	# --- E(lnq^2 | k) ---
     lnq2_mnt = by(tmp_df, :leftbh, sdf -> mean(sdf[lnQname].^2), sort = true)[:x1]
 
-	zcog_mnt = vcat(zm_mnt, zlnw_mnt, zlnqx_mnt, xq_lnq_mnt, lnwq_mnt, lnq2_mnt)
+	zcog_mnt = vcat(zm_mnt, zlnw_mnt, zxqj_mig_mnt, zxqj_lft_mnt, xq_lnq_mnt, lnwq_mnt, lnq2_mnt)
 	return zcog_mnt
 end
 
@@ -215,7 +217,7 @@ function dtmnts_nobs_leftbh(df::AbstractDataFrame, lnWname::Symbol,
 end
 
 function dtmnts_nobs_zcog(df::AbstractDataFrame, lnWname::Symbol,
-						   lnQname::Symbol, QJname::Symbol,
+						   lnQname::Symbol, XQJMname::Symbol, XQJLname::Symbol,
 						   Znames::AbstractVector{Symbol},
 						   XQnames::AbstractVector{Symbol})
 	##
@@ -232,16 +234,19 @@ function dtmnts_nobs_zcog(df::AbstractDataFrame, lnWname::Symbol,
 	tmp_df = dropmissing(df[[Znames; lnWname]], disallowmissing = true)
 	zlnw_mnt_n = nrow(tmp_df) * ones(nZ)
 
-	# unconditional covariance: E(z'lnqx)
-	tmp_df = dropmissing(df[[Znames; QJname]], disallowmissing = true)
-	zlnqx_mnt_n = nrow(tmp_df) * ones(nZ)
+	# covariance: E(z'xqj | k)
+	tmp_df = dropmissing(df[[Znames; XQJMname; XQJLname; :leftbh]], disallowmissing = true)
+	zxqj_mig_mnt_n = nrow(view(tmp_df, tmp_df[:leftbh] .== 0, :)) * ones(nZ)
+	zxqj_lft_mnt_n = nrow(view(tmp_df, tmp_df[:leftbh] .== 1, :)) * ones(nZ)
+
 
 	# --- E(lnq|k) & E(xq'lnq | k) ---
-	tmp_df = dropmissing(df[[XQnames; lnQname; lnWname; :leftbh]], disallowmissing = true)
+	tmp_df = dropmissing(df[[XQnames; XQJMname; XQJLname; lnQname; lnWname; :leftbh]],
+						 disallowmissing = true)
 
 	lnq_mnt_n = by(tmp_df, :leftbh, df -> length(df[lnQname]), sort = true)[:x1]
-	xq_lnq_mig_n = nrow(view(tmp_df, tmp_df[:leftbh] .== 0, :)) * ones(nXQ)
-	xq_lnq_lft_n = nrow(view(tmp_df, tmp_df[:leftbh] .== 1, :)) * ones(nXQ)
+	xq_lnq_mig_n = nrow(view(tmp_df, tmp_df[:leftbh] .== 0, :)) * ones(nXQ + 1)
+	xq_lnq_lft_n = nrow(view(tmp_df, tmp_df[:leftbh] .== 1, :)) * ones(nXQ + 1)
 
 	xq_lnq_mnt_n = [lnq_mnt_n[1]; xq_lnq_mig_n; lnq_mnt_n[2]; xq_lnq_lft_n]
 
@@ -251,7 +256,7 @@ function dtmnts_nobs_zcog(df::AbstractDataFrame, lnWname::Symbol,
 	# --- E(lnq^2 | k) ---
     lnq2_mnt_n = by(tmp_df, :leftbh, df -> length(df[lnQname]), sort = true)[:x1]
 
-	zcog_mnt_n = vcat(zm_mnt_n, zlnw_mnt_n, zlnqx_mnt_n, xq_lnq_mnt_n,
-					  lnwq_mnt_n, lnq2_mnt_n)
+	zcog_mnt_n = vcat(zm_mnt_n, zlnw_mnt_n, zxqj_mig_mnt_n, zxqj_lft_mnt_n,
+					  xq_lnq_mnt_n, lnwq_mnt_n, lnq2_mnt_n)
 	return zcog_mnt_n
 end

@@ -1,5 +1,5 @@
 using DataFrames
-function data_prepare(df::AbstractDataFrame, lnWname::Symbol, QJname::Symbol,
+function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMname::Symbol, XQJLname::Symbol,
                       XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
                       XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol},
                       XQnames::AbstractVector{Symbol}; trs::Bool = false)
@@ -16,7 +16,8 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, QJname::Symbol,
     lnW = Vector{Float64}(df[lnWname])
     lnW = lnW .- mean(lnW, weights(Vector{Float64}(df[:w_l])))
     lnP = Vector{Float64}(df[:lnhprice])
-    lnQX = Vector{Float64}(df[QJname])
+    XQJ_mig = Vector{Float64}(df[XQJMname])
+    XQJ_lft = Vector{Float64}(df[XQJLname])
     wgt = Vector{Float64}(df[df[:chosen] .== 1, :w_l])
     dage9vec = Vector{Float64}(df[df[:chosen] .== 1, :cage9])
 
@@ -80,6 +81,6 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, QJname::Symbol,
         XQ = copy(XQ')
     end
 
-    return(lnDataShare, Delta_init, lnW, lnP, lnQX, wgt, sgwgt, swgt9, XT, XM, XL, XF, XQ,
-           pr_lft, pr_lft_alt, nalt, nind, dgvec, htvec, dage9vec)
+    return(lnDataShare, Delta_init, lnW, lnP, XQJ_mig, XQJ_lft, wgt, sgwgt, swgt9,
+            XT, XM, XL, XF, XQ, pr_lft, pr_lft_alt, nalt, nind, dgvec, htvec, dage9vec)
 end

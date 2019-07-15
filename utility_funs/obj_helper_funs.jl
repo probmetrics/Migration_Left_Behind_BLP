@@ -1,17 +1,19 @@
-function lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, bw, blft, bitr)
+function lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, qxj_mig, qxj_lft,
+				  bw, blft, bitr, bqxj)
 	for j = 1:length(lnq_mig)
-		dlnq_j, lnq_mig_j = qfun(lnw[j], ln1mlam[j], xbq[j], bw, blft, bitr)
+		dlnq_j, lnq_mig_j = qfun(lnw[j], ln1mlam[j], xbq[j], qxj_mig[j],
+								 qxj_lft[j], bw, blft, bitr, bqxj)
 		lnq_mig[j] = lnq_mig_j
 		dlnq[j] = dlnq_j
 	end
 end
 
-function qfun(lnw, ln1mlam, xbq, bw, blft, bitr)
+function qfun(lnw, ln1mlam, xbq, qxj_mig, qxj_lft, bw, blft, bitr, bqxj)
     # b2 = blft < 0
     # b1 = bw > 0
     # b3 = bitr < 0
-    dlnq = blft + bitr * lnw + bw * ln1mlam
-	lnq_mig = bw * lnw - bw * ln1mlam + xbq
+    dlnq = blft + bitr * lnw + bw * ln1mlam + bqxj * (qxj_lft - qxj_mig)
+	lnq_mig = bw * lnw - bw * ln1mlam + xbq + bqxj * qxj_mig
     return (dlnq, lnq_mig)
 end
 
