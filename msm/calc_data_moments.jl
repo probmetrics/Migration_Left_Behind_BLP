@@ -51,7 +51,7 @@ function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 														  XLnames, XFnames, XMnames)
 	end
 
-	return leftbh_bsmnt_mat
+	return leftbh_bs_mat
 end
 
 using RCall
@@ -94,7 +94,7 @@ function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symb
 	lnW = lnW .- mean(view(lnW, cage9d .== 1), weights(view(wgtvec, cage9d .== 1)))
 
     # --- (1) type-specific left-behind probabilities in each city ---
-    pr_lft_alt = by(df, [:treat, :city_alts], sort = true) do df
+    pr_lft_alt = by(df, [:htreat, :city_alts], sort = true) do df
         vleft = Vector{Float64}(df[:child_leftbh])
         wt = Vector{Float64}(df[:w_l])
         mean(vleft, weights(wt))
@@ -184,7 +184,7 @@ function dtmnts_nobs_leftbh(df::AbstractDataFrame, lnWname::Symbol,
 	swt_lft = sum(view(df, df[:child_leftbh] .== 1, :w_l))
 
     # --- (1) type-specific left-behind probabilities in each city ---
-    pr_lft_alt_n = by(df, [:treat, :city_alts], x -> sum(x[:w_l]), sort = true)
+    pr_lft_alt_n = by(df, [:htreat, :city_alts], x -> sum(x[:w_l]), sort = true)
     pr_lft_alt_n = pr_lft_alt_n[:x1]
 
     # --- (2) data moments for XM ---

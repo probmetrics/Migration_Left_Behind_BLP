@@ -6,7 +6,7 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, QJname::Symbol,
     ndt = nrow(df)
     city_alts = Vector{Int64}(df[:city_alts])
     nalt = length(unique(city_alts))
-    ngvec = by(view(df, df[:chosen] .== 1, :), [:treat, :year], nrow, sort = true)[3]
+    ngvec = by(view(df, df[:chosen] .== 1, :), [:htreat, :year], nrow, sort = true)[3]
     ngvec = cumsum(ngvec)
     nind = Int(ndt / nalt)
     dgvec = [locate_gidx(i, ngvec) for i = 1:nind]
@@ -26,21 +26,21 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, QJname::Symbol,
     swgt9 = countmap(htvec, weights(wgt .* dage9vec))[2]
 
     # --- initial value of delta ---
-    cfreq = by(view(df, df[:chosen] .== 1, :), [:treat, :year, :city_alts], d -> sum(d[:w_l]))
-    cfreq = reshape(sort(cfreq, [:treat, :year, :city_alts])[:x1], nalt, length(ngvec))
+    cfreq = by(view(df, df[:chosen] .== 1, :), [:htreat, :year, :city_alts], d -> sum(d[:w_l]))
+    cfreq = reshape(sort(cfreq, [:htreat, :year, :city_alts])[:x1], nalt, length(ngvec))
     cprop = cfreq ./ sum(cfreq, dims = 1)
     lnDataShare = log.(cprop)
     Delta_init = lnDataShare .- lnDataShare[1, :]'
 
     # --- type-specific prob. of left-behind in data ---
-    pr_lft_alt = by(view(df, df[:chosen] .== 1, :), [:treat, :city_alts], sort = true) do sdf
+    pr_lft_alt = by(view(df, df[:chosen] .== 1, :), [:htreat, :city_alts], sort = true) do sdf
         vleft = Vector{Float64}(sdf[:child_leftbh])
         wt = Vector{Float64}(sdf[:w_l])
         mean(vleft, weights(wt))
     end
     pr_lft_alt = reshape(pr_lft_alt[:x1], nalt, 2)
 
-    pr_lft = by(view(df, df[:chosen] .== 1, :), :treat, sort = true) do sdf
+    pr_lft = by(view(df, df[:chosen] .== 1, :), :htreat, sort = true) do sdf
         vleft = Vector{Float64}(sdf[:child_leftbh])
         wt = Vector{Float64}(sdf[:w_l])
         mean(vleft, weights(wt))
