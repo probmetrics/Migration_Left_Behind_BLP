@@ -23,7 +23,7 @@ LeftbhData[:nchild_lnhp] = LeftbhData[:lnhprice].* LeftbhData[:nchild]
 YL = Vector{Float64}(LeftbhData[:chosen])
 YM = Vector{Float64}(LeftbhData[:child_leftbh])
 
-lnDataShare, Delta_init, lnW, lnP, wgt, sgwgt,
+lnDataShare, Delta_init, lnW, lnP, XQJ_mig, XQJ_lft, wgt, sgwgt,
 XT, XM, XL, XF, XQ, nalt, nind, dgvec = data_prepare(LeftbhData; trs = true)
 
 ##
@@ -51,7 +51,7 @@ ZSHK = map(1:nrow(DF_master)) do i
     Matrix{Float64}(boot_df(bdf, zshk_vars; nboot = nsim))
 end
 ZSHK = vcat(ZSHK...)
-
+ZSHK = copy(ZSHK')
 USHK = dropdims(draw_shock(ndraw; dims = 1); dims = 2) # draw iid standard normal random shock
 
 ##
@@ -59,7 +59,7 @@ USHK = dropdims(draw_shock(ndraw; dims = 1); dims = 2) # draw iid standard norma
 ##
 
 XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
-XFnames = [:treat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
+XFnames = [:htreat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
 		   :lnmnw_city, :nchild_lnmw, :nchild_lnhp]
 XLnames = [:cfemale, :nchild, :cagey, :cageysq]
 lftvar = [XTnames; XFnames; XLnames]
@@ -73,7 +73,8 @@ lft_init = coef(lft_fit)
 ##
 
 nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
-		size(XQ, 1) + size(ZSHK, 1) + 1
+		size(XQ, 1) + 1 + size(ZSHK, 1) + 1
+
 xt_init = lft_init[1:6]
 xf_init = lft_init[7:14]
 xl_init = lft_init[15:end]
@@ -82,43 +83,49 @@ xq_init = zeros(size(XQ, 1))
 bw = 0.194
 blft = -0.148
 bitr = -0.167
-initval = [xt_init; xl_init; xm_init; 0; xf_init; blft; bw; bitr; xq_init; zeros(2); -1.5]
-
-ZSt = copy(ZSHK')
+bqxj = 0.0
+initval = [xt_init; 0; xl_init; xm_init; 0; xf_init; blft; bw; bitr;
+		   bqxj; xq_init; zeros(2); -1.5]
 
 # --- iterative maximization ---
-msl_est_iter(initval, lnDataShare, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF,
-			 XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; biter = 3)
+msl_est_iter(initval, lnDataShare, Delta_init, YL, YM, lnW, lnP, XQJ_mig,
+			 XQJ_lft, XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
+			 nalt, nsim, dgvec; biter = 3)
 
 # # --- evaluate log-likelihood ---
-# @time mig_leftbh_llk(initval, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
-# 			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
-# # 430352.6129; 5.2s
+# @time mig_leftbh_llk(initval, Delta_init, YL, YM, lnW, lnP, XQJ_mig,
+# 			 		 XQJ_lft, XT, XL, XM, XF, XQ, ZSHK, USHK, wgt,
+# 			   		 nind, nalt, nsim, dgvec, 0.12, 1)
+# # 444022.5091; 5.3s
 #
-# @time mig_leftbh_llk_thread(initval, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF, XQ,
-# 			   ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
-# # 430352.6129; 0.8s for 8 threads
+# @time mig_leftbh_llk_thread(initval, Delta_init, YL, YM, lnW, lnP, XQJ_mig,
+# 			 		 		XQJ_lft, XT, XL, XM, XF, XQ, ZSHK, USHK, wgt,
+# 			   		 		nind, nalt, nsim, dgvec, 0.12, 1)
+# # 444022.5091; 0.82s for 8 threads
 #
 # # --- test for ForwardDiff ---
 # using Optim, ForwardDiff
-# llk_opt = parm -> mig_leftbh_llk(parm, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF,
-# 			   					 XQ, ZSt, USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
+# llk_opt = parm -> mig_leftbh_llk(parm, Delta_init, YL, YM, lnW, lnP, XQJ_mig,
+# 			 		 			 XQJ_lft, XT, XL, XM, XF, XQ, ZSHK, USHK, wgt,
+# 			   					 nind, nalt, nsim, dgvec, 0.12, 1)
 # @time llk_opt(initval)
 # @time gr = ForwardDiff.gradient(llk_opt, initval)
 #
 # llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, Delta_init, YL, YM, lnW, lnP,
-# 											   XT, XL, XM, XF, XQ, ZSt, USHK, wgt,
-# 											   nind, nalt, nsim, dgvec, 0.12, 1)
+# 										XQJ_mig, XQJ_lft, XT, XL, XM, XF, XQ, ZSHK,
+# 										USHK, wgt, nind, nalt, nsim, dgvec, 0.12, 1)
 # @time llk_opt_thread(initval)
 # @time gr = ForwardDiff.gradient(llk_opt_thread, initval)
 #
 # # --- predicted location choice probabilities ---
 # ngrp = length(sgwgt)
 # mktshare = zeros(nalt, ngrp)
-# @time locpr_serial!(mktshare, initval, Delta_init, lnW, lnP, XT, XL, XM,
-# 			   		XF, XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec)
-# @time locpr_thread!(mktshare, initval, Delta_init, lnW, lnP, XT, XL, XM,
-# 			   		XF, XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec)
+# @time locpr_serial!(mktshare, initval, Delta_init, lnW, lnP, XQJ_mig, XQJ_lft,
+# 					XT, XL, XM,	XF, XQ, ZSHK, USHK, wgt, sgwgt, nind, nalt,
+# 					nsim, dgvec)
+# @time locpr_thread!(mktshare, initval, Delta_init, lnW, lnP, XQJ_mig, XQJ_lft,
+# 					XT, XL, XM,	XF, XQ, ZSHK, USHK, wgt, sgwgt, nind, nalt,
+# 					nsim, dgvec)
 #
 # # --- BLP Contraction Mapping ---
 # delta_fpt = zeros(nalt, ngrp)
@@ -127,5 +134,5 @@ msl_est_iter(initval, lnDataShare, Delta_init, YL, YM, lnW, lnP, XT, XL, XM, XF,
 # delta_q1 = zeros(nalt, ngrp)
 # delta_q2 = zeros(nalt, ngrp)
 # @time fpt_squarem!(delta_fpt, delta_new, delta_old, delta_q1, delta_q2, lnDataShare,
-# 				   initval, lnW, lnP, XT, XL, XM, XF, XQ, ZSt, USHK, wgt, sgwgt,
-# 				   nind, nalt, nsim, dgvec)
+# 				   initval, lnW, lnP, XQJ_mig, XQJ_lft, XT, XL, XM, XF, XQ, ZSHK,
+# 				   USHK, wgt, sgwgt, nind, nalt, nsim, dgvec)

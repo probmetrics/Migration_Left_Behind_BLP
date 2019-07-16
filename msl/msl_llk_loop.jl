@@ -195,7 +195,7 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 			sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 			g = view(dgvec, i)
 
-			llk_thread += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu, alpha,
+			llk_thread += individual_llk(bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, alpha,
 								  view(Delta, :, g), xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr,
 								  view(YL, ind_sel), view(YM, ind_sel), view(lnW, ind_sel),
 								  view(lnP, ind_sel), view(XQJ_mig, ind_sel), view(XQJ_lft, ind_sel),

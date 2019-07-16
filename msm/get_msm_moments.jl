@@ -1,8 +1,7 @@
 function msm_obj(parm, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 alpha::T, lnW::AbstractVector{T}, lnP::AbstractVector{T},
-				 XQJ_mig::AbstractVector{T},
-				 XQJ_lft::AbstractVector{T}, XT::AbstractMatrix{T},
-				 XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
+				 XQJ_mig::AbstractVector{T}, XQJ_lft::AbstractVector{T},
+				 XT::AbstractMatrix{T}, XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 				 XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 				 ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T}, QSHK::AbstractVector{T},
 				 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
@@ -38,7 +37,7 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 
 	bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu,
 	rhoq, sigq, mnt_idx, mnt_drop, mnt_cage9 =
-			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
+			unpack_parm_msm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
 
 	# --- common variables ---
 	TT = promote_type(eltype(parm), eltype(lnW))
@@ -127,7 +126,7 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 
 	bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu,
 	rhoq, sigq, mnt_idx, mnt_drop, mnt_cage9 =
-			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
+			unpack_parm_msm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
 
 	TT = promote_type(eltype(parm), eltype(lnW))
 	unit = one(TT)
@@ -396,10 +395,10 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	#	   lnwq_mig, lnwq_lft, lnq2_mig, lnq2_lft)
 end
 
-function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
-					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
-					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
-					 nalt::Int, xdim::Int) where T <: AbstractFloat
+function unpack_parm_msm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
+					 	 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
+					 	 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
+					 	 nalt::Int, xdim::Int) where T <: AbstractFloat
 	 nxt = size(XT, xdim)
 	 nxl = size(XL, xdim)
 	 nxm = size(XM, xdim)

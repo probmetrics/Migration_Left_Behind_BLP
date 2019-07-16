@@ -150,7 +150,7 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 		loc_pri = zeros(TT, nalt)
 		tid = Threads.threadid()
 
-		@fastmath @inbounds for i in getrange(nind)
+		@fastmath @inbounds for i in get_thread_range(nind)
 			ind_sel = (1 + nalt * (i - 1)):(i * nalt)
 			sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 			g = view(dgvec, i)
