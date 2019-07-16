@@ -65,6 +65,15 @@ function emaxprob!(x::AbstractArray{T}) where T <: Real
 	x ./= s
 end
 
+# function mydot(x::AbstractArray{T}, y::AbstractArray{T}) where T <: Real
+# 	size(x) == size(y) || error("x and y should have the same size")
+#     s = zero(eltype(x))
+#     @inbounds for i in eachindex(x)
+# 		s += x[i] * y[i]
+#     end
+# 	return s
+# end
+
 using Random, DataFrames
 using StatsBase:sample
 function boot_df(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol, 1}};

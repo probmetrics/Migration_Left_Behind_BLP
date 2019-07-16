@@ -1,7 +1,8 @@
 using StatsFuns:logistic, log1pexp
 function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 						YM::AbstractVector{T}, lnW::AbstractVector{T},
-						lnP::AbstractVector{T}, XT::AbstractMatrix{T},
+						lnP::AbstractVector{T}, QXJ_mig::AbstractVector{T},
+						QXJ_lft::AbstractVector{T},	XT::AbstractMatrix{T},
 						XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 						XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 						ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
@@ -20,7 +21,8 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu = unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
+	bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu =
+			unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK; xdim = xdim)
 
 	# --- key input vectors ---
 	Xbt = XT * bt
@@ -29,8 +31,8 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 	Xbm = XM * bm
 	ln1mlam = XF * bf
 	broadcast!(log1pexp, ln1mlam, ln1mlam) #<-- [-ln(1-lam)]
-	dlnQ = blft .+ bitr * lnW + bw * ln1mlam
-	lnQ_mig = bw * lnW - bw * ln1mlam + XQ * bq
+	dlnQ = blft .+ bitr * lnW + bw * ln1mlam + bqxj * (QXJ_lft - QXJ_mig)
+	lnQ_mig = bw * lnW - bw * ln1mlam + XQ * bq + bqxj * QXJ_mig
 
 	Zbr = ZSHK * bz
 
@@ -53,8 +55,9 @@ end
 
 
 using StatsFuns:logistic
-function individual_llk(bw, blft, bitr, sigu, alpha, delta, yl, ym, lnw, lnp, xbt, xbl,
-						xbm, ln1mlam, dlnq, lnq_mig, zbr, ushk, nalt, nsim)
+function individual_llk(bw, blft, bitr, bqxj, sigu, alpha, delta, yl, ym, lnw,
+						lnp, xbt, xbl, xbm, ln1mlam, dlnq, lnq_mig, zbr, ushk,
+						nalt, nsim)
 	##
 	## delta: 		J x 1 Vector
 	## lnw, lnp: 	J x 1 Vector
@@ -121,10 +124,12 @@ function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 	 blft = parm[nxt + nxl + nxm + nxf + 1]
 	 bw = parm[nxt + nxl + nxm + nxf + 2]
 	 bitr = parm[nxt + nxl + nxm + nxf + 3]
-	 bq = parm[(nxt + nxl + nxm + nxf + 4):(nxt + nxl + nxm + nxf + nxq + 3)]
+	 bqxj = parm[nxt + nxl + nxm + nxf + 4]
 
-	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 4):(nxt + nxl + nxm + nxf + nxq + nzr + 3)] #<- observed household char.
-	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + nzr + 4])
+	 bq = parm[(nxt + nxl + nxm + nxf + 5):(nxt + nxl + nxm + nxf + nxq + 4)]
 
-	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bz, sigu)
+	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 5):(nxt + nxl + nxm + nxf + nxq + nzr + 4)] #<- observed household char.
+	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + nzr + 5])
+
+	 return (bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu)
 end
