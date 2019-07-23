@@ -7,7 +7,7 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
 					  ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T}, wgt::AbstractVector{T},
 					  sgwgt::AbstractVector{T}, nind::Int, nalt::Int, nsim::Int,
 					  dgvec::AbstractVector{Int}; alpha::T = 0.12, xdim::Int = 1,
-					  btolerance::T = 1.0e-6, biter::Int = 500, ftolerance::T = 1.0e-10,
+					  btolerance::T = 1.0e-6, biter::Int = 500, ftolerance::T = 1.0e-12,
 					  fpiter::Int = 2000, mstep::T = 4.0, stepmin::T = 1.0,	stepmax::T = 1.0,
 					  alphaversion::Int = 3) where T <: AbstractFloat
 	##

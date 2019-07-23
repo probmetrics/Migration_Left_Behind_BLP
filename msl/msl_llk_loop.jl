@@ -72,7 +72,7 @@ function individual_llk(bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, alph
 	xbl = xl' * bl
 	mul!(xbm, xm', bm)
 	mul!(ln1mlam, xf', bf)
-	broadcast!(log1pexp, ln1mlam, ln1mlam)
+	broadcast!(nlog1pexp, ln1mlam, ln1mlam)
 
 	mul!(xbq, xq', bq)
 	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, qxj_mig, qxj_lft, bw, blft, bitr, bqxj)
