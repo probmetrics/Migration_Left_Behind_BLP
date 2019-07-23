@@ -7,7 +7,7 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
 					  XF::AbstractMatrix{T}, XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
  					  USHK::AbstractVector{T}, wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
 					  nind::Int, nalt::Int, nsim::Int, dgvec::AbstractVector{Int};
-					  alpha::T = 0.12, xdim::Int = 1, ftolerance::T = 1e-10,
+					  alpha::T = 0.12, xdim::Int = 1, ftolerance::T = 1e-12,
 					  fpiter::Int = 500, mstep::T = 4.0, stepmin_init::T = 1.0,
 					  stepmax_init::T = 1.0, alphaversion::Int = 3) where T <: AbstractFloat
     # default values:
@@ -242,7 +242,7 @@ function loc_prob_ind!(loc_pri, bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, si
 	xbl = xl' * bl
 	mul!(xbm, xm', bm)
 	mul!(ln1mlam, xf', bf)
-	broadcast!(log1pexp, ln1mlam, ln1mlam)
+	broadcast!(nlog1pexp, ln1mlam, ln1mlam)
 
 	mul!(xbq, xq', bq)
 	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, qxj_mig, qxj_lft, bw, blft, bitr, bqxj)
