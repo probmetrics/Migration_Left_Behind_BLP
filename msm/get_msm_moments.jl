@@ -231,7 +231,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	xbl = xl' * bl
 	mul!(xbm, xm', bm)
 	mul!(ln1mlam, xf', bf)
-	broadcast!(log1pexp, ln1mlam, ln1mlam)
+	broadcast!(nlog1pexp, ln1mlam, ln1mlam)
 
 	mul!(xbq, xq', bq)
 	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, qxj_mig, qxj_lft, bw, blft, bitr, bqxj)
@@ -349,7 +349,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 
 	# --- moments for XL: E(xl|k=1) ---
 	# xl_mnt .= (uc_lft_pr / pr_lft) * xl
-	BLAS.axpy!((uc_lft_pr / pr_lft_h), xl, view(mntvec, mnt_range[7]))
+	BLAS.axpy!((uc_lft_pr / pr_lft_h), xl, view(mntvec, mnt_range[7])) #<-- NOTE: no constant in XL
 
 	# --- moments for XT: E(xt|k=1) ---
 	# xt_mnt .= (uc_lft_pr / pr_lft) * xt
@@ -426,7 +426,7 @@ function unpack_parm_msm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 	 mnt_idx = [nalt, nxm, nxf, nxf, 1, 1, nxl, nxt, nxt - 1, (nxf - 1) * (nxt - 1),
 	 			nzr, nzr, nzr, nzr, nzr, nxq, 1, nxq, 1, 1, 1, 1, 1]
 	 mnt_drop = [collect(1:nalt); nalt + nxm + 1; nalt + nxm + nxf + 1;
-	 			 nalt + nxm + 2*nxf + 3; nalt + nxm + 2*nxf + 3 + nxl]
+	 			 nalt + nxm + 2*nxf + 3 + nxl]
 	 mnt_cage9 = collect((sum(mnt_idx) - 2*nxq - 5):sum(mnt_idx))
 
 	 return (bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq,

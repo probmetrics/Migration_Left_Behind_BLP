@@ -13,7 +13,7 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 				 		wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
 				 		swgt9::T, nind::Int, nalt::Int,	nsim::Int; xdim::Int = 1,
 						btolerance::T = 1.0e-6, biter::Int = 500,
-						ftolerance::T = 1.0e-10, fpiter::Int = 2000,
+						ftolerance::T = 1.0e-12, fpiter::Int = 2000,
                     	mstep::T = 4.0, stepmin::T = 1.0,
                     	stepmax::T = 1.0, alphaversion::Int = 3) where T <: AbstractFloat
 	##
