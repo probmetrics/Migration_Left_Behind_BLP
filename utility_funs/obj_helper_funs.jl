@@ -91,7 +91,7 @@ function boot_df(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol, 1}
     end
     all(v -> in(v, names(data)), vnames) || error("Not all vnames in data")
 
-    sel = prod(mapreduce(x -> .!ismissing.(data[x]), hcat, vnames), dims = 2)
+    sel = prod(mapreduce(x -> .!ismissing.(data[:, x]), hcat, vnames), dims = 2)
     selpos = (LinearIndices(sel))[findall(sel)]
 
     bootsel = sample(selpos, nboot; replace = true)
@@ -113,7 +113,7 @@ function boot_df_by(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol,
     if byvars == nothing
 		nboot = Int(floor(nrow(data) * multiplier))
 
-		sel = prod(mapreduce(x -> .!ismissing.(data[x]), hcat, vnames), dims = 2)
+		sel = prod(mapreduce(x -> .!ismissing.(data[:, x]), hcat, vnames), dims = 2)
     	selpos = (LinearIndices(sel))[findall(sel)]
 
 		bootsel = sample(selpos, nboot; replace = true)
@@ -128,7 +128,7 @@ function boot_df_by(data::AbstractDataFrame, vnames::Union{Symbol, Array{Symbol,
 		outdata = by(data, byvars) do df
             nboot = Int(floor(nrow(df) * multiplier))
 
-			sel = prod(mapreduce(x -> .!ismissing.(df[x]), hcat, vnames), dims = 2)
+			sel = prod(mapreduce(x -> .!ismissing.(df[:, x]), hcat, vnames), dims = 2)
     		selpos = (LinearIndices(sel))[findall(sel)]
 
             bootsel = sample(selpos, nboot; replace = true)
