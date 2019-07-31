@@ -2,7 +2,7 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
                       delta_old::AbstractMatrix{T}, delta_q1::AbstractMatrix{T},
 					  delta_q2::AbstractMatrix{T}, lnDataShare::AbstractMatrix{T},
 					  parm::AbstractVector{T}, lnW::AbstractVector{T}, lnP::AbstractVector{T},
-					  QXJ_mig::AbstractVector{T}, QXJ_lft::AbstractVector{T},
+					  XQJ_mig::AbstractVector{T}, XQJ_lft::AbstractVector{T},
 					  XT::AbstractMatrix{T}, XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 					  XF::AbstractMatrix{T}, XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
  					  USHK::AbstractVector{T}, wgt::AbstractVector{T}, sgwgt::AbstractVector{T},

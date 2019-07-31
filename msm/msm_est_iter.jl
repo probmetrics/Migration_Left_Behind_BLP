@@ -2,8 +2,8 @@
 using Optim, ForwardDiff, LineSearches
 function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 		lnDataShare::AbstractVector{T}, alpha::T, lnW::AbstractVector{T},
-						lnP::AbstractVector{T}, QXJ_mig::AbstractVector{T},
-						QXJ_lft::AbstractVector{T}, XT::AbstractMatrix{T},
+						lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
+						XQJ_lft::AbstractVector{T}, XT::AbstractMatrix{T},
 				 		XL::AbstractMatrix{T}, XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 						XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
 						QSHK::AbstractVector{T}, pr_lft::AbstractVector{T},

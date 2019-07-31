@@ -1,8 +1,8 @@
 using FileIO, DataFrames, CSV, Statistics, StatsBase, LinearAlgebra, GLM
-# DTDIR = "E:/NutStore/Research/mig_leftbh_enrollment"
-# WKDIR = "E:/Dropbox/GitHub/Migration_Left_Behind_BLP"
-WKDIR = "/Users/probmetrics/Dropbox/GitHub/Migration_Left_Behind_BLP"
-DTDIR = "/Users/probmetrics/NutStore/Research/mig_leftbh_enrollment"
+DTDIR = "E:/NutStore/Research/mig_leftbh_enrollment"
+WKDIR = "E:/Dropbox/GitHub/Migration_Left_Behind_BLP"
+# WKDIR = "/Users/probmetrics/Dropbox/GitHub/Migration_Left_Behind_BLP"
+# DTDIR = "/Users/probmetrics/NutStore/Research/mig_leftbh_enrollment"
 
 include("$WKDIR/utility_funs/obj_helper_funs.jl")
 include("$WKDIR/msm/data_prepare_msm.jl")
@@ -17,7 +17,7 @@ include("$WKDIR/msm/get_msm_moments.jl")
 ##
 
 LeftbhData = CSV.read("$DTDIR/mig_leftbh_enroll_fit.csv"; type = Float64)
-LeftbhData = sort(LeftbhData, (:year, :hhtype, :ID, :cline, :city_alts))
+# LeftbhData = sort(LeftbhData, (:year, :hhtype, :ID, :cline, :city_alts))
 LeftbhData[:cage9] = Float64.(LeftbhData[:cagey] .> 8)
 LeftbhData[:cagey] = LeftbhData[:cagey] / 10
 LeftbhData[:cageysq] = LeftbhData[:cagey].^2
@@ -100,7 +100,9 @@ dwt = 1.0 ./ vcat(var_leftbh_mnt, var_zcog_mnt)
 ##
 
 lftvar = [XTnames; XFnames; XLnames]
-lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))))
+LeftbhData[:dpub_exp_fac] = LeftbhData[:eexp_fac_ucity] - LeftbhData[:eexp_fac_rprov]
+
+lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))) + lnhinc_alts)
 lft_fit = glm(lft_form, view(LeftbhData, YL .== 1, :),
 			  Binomial(), LogitLink(), wts = wgt)
 lft_init = coef(lft_fit)
@@ -115,9 +117,9 @@ lnq_fit = lm(lnq_form, MigBootData)
 
 nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
 		size(XQ, 1) + 1 + size(ZSHK, 1) + 3
-xt_init = lft_init[1:6]
-xf_init = lft_init[7:14]
-xl_init = lft_init[15:end]
+xt_init = lft_init[1:size(XT, 1)]
+xf_init = lft_init[(size(XT, 1) + 1):(size(XT, 1) + size(XF, 1) - 1)]
+xl_init = lft_init[(size(XT, 1) + size(XF, 1)):end-1]
 xm_init = zeros(size(XM, 1))
 # xq_init = zeros(size(XQ, 1))
 xq_init = [coef(lnq_fit)[1]; coef(lnq_fit)[5:end-1]]
@@ -125,7 +127,7 @@ bw = 0.16
 blft = -0.104
 bitr = -0.13
 bqxj = 0.085
-initval = [xt_init; 0.0; xl_init; xm_init; 0.0; xf_init; blft; bw; bitr;
+initval = [xt_init; xl_init; xm_init; 0.0; xf_init; blft; bw; bitr;
 		   bqxj; xq_init; zeros(2); -1.5; 0.0; -1.0]
 
 # --- iterative maximization ---
@@ -133,12 +135,12 @@ initval = [xt_init; 0.0; xl_init; xm_init; 0.0; xf_init; blft; bw; bitr;
 # 			 XQ, ZSt, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; biter = 3)
 
 # --- evaluate moment conditions ---
-# 6.5s
+# 6s
 @time mnt_serial = get_moments(initval, alpha, lnW, lnP, XQJ_mig, XQJ_lft, XT, XL,
 				  		XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft, pr_lft_alt, Delta_init,
 				  		dgvec, htvec, dage9vec, wgt, sgwgt, swgt9, nind, nalt, nsim; xdim = 1)
 
-# 1.3s for 8 threads
+# 1.1s for 8 threads
 @time mnt_thread = get_moments_thread(initval, alpha, lnW, lnP, XQJ_mig, XQJ_lft,
 						XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft, pr_lft_alt,
 				  		Delta_init, dgvec, htvec, dage9vec, wgt, sgwgt, swgt9,

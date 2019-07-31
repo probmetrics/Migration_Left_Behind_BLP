@@ -18,7 +18,7 @@ include("$WKDIR/msl/msl_est_iter.jl")
 ##
 
 LeftbhData = CSV.read("$DTDIR/mig_leftbh_enroll_fit.csv"; type = Float64)
-LeftbhData = sort(LeftbhData, (:year, :hhtype, :ID, :cline, :city_alts))
+# LeftbhData = sort(LeftbhData, (:year, :hhtype, :ID, :cline, :city_alts))
 LeftbhData[!, :cagey] = LeftbhData[:, :cagey] / 10
 LeftbhData[!, :cageysq] = LeftbhData[:, :cagey].^2
 LeftbhData[!, :nchild_lnhp] = LeftbhData[:, :lnhprice].* LeftbhData[:, :nchild]
@@ -64,8 +64,10 @@ XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
 XFnames = [:htreat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
 		   :lnmnw_city, :nchild_lnhp]
 XLnames = [:cfemale, :nchild, :cagey, :cageysq]
+XQnames = [:cfemale, :cagey, :nchild]
+
 lftvar = [XTnames; XFnames; XLnames]
-lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))))
+lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))) + lnhinc_alts)
 lft_fit = glm(lft_form, view(LeftbhData, YL .== 1, :),
 			  Binomial(), LogitLink(), wts = wgt)
 lft_init = coef(lft_fit)
@@ -83,9 +85,9 @@ mydelta_init = Matrix{Float64}(delta_init_df[:, 2:end])
 nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
 		size(XQ, 1) + 1 + size(ZSHK, 1) + 1
 
-xt_init = lft_init[1:6]
-xf_init = lft_init[7:13]
-xl_init = lft_init[14:end]
+xt_init = lft_init[1:size(XT, 1)]
+xf_init = lft_init[(size(XT, 1) + 1):(size(XT, 1) + size(XF, 1) - 1)]
+xl_init = lft_init[(size(XT, 1) + size(XF, 1)):end-1]
 xm_init = zeros(size(XM, 1))
 xq_init = zeros(size(XQ, 1))
 bw = 0.194
