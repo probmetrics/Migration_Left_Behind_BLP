@@ -1,7 +1,7 @@
 function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 						YM::AbstractVector{T}, lnW::AbstractVector{T},
-						lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
-						XQJ_lft::AbstractVector{T},	XT::AbstractMatrix{T},
+						lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
+						XT::AbstractMatrix{T},
 						XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 						XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 						ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
@@ -14,19 +14,21 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 	## XL: 		nl x N Matrix
 	## XM: 		nm x (NJ) Matrix
 	## XF: 		nf x (NJ) Matrix
-	## XQ: 		nq x NJ Matrix
+	## XQ: 		nq x N Matrix
+	## XQJ_mig: nq x NJ Matrix
 	## ZSHK: 	nz x (NS) Matrix
 	## USHK:	NS Vector
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu =
-		unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu =
+		unpack_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	# --- setup containers ---
 	TT = promote_type(eltype(parm), eltype(Delta))
 	xbm = zeros(TT, nalt)
-	xbq = zeros(TT, nalt)
+	xbqj_mig = zeros(TT, nalt)
+	xbqj_dif = zeros(TT, nalt)
 	ln1mlam = zeros(TT, nalt)
 	lnq_mig = zeros(TT, nalt)
 	dlnq = zeros(TT, nalt)
@@ -39,12 +41,12 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 		g = view(dgvec, i)
 
-		llk += individual_llk(bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, alpha,
-							  view(Delta, :, g), xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr,
+		llk += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, alpha,
+							  view(Delta, :, g), xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr,
 							  view(YL, ind_sel), view(YM, ind_sel), view(lnW, ind_sel),
-							  view(lnP, ind_sel), view(XQJ_mig, ind_sel), view(XQJ_lft, ind_sel),
+							  view(lnP, ind_sel), view(XQJ_mig, :, ind_sel),
 							  view(XT, :, i), view(XL, :, i), view(XM, :, ind_sel),
-							  view(XF, :, ind_sel), view(XQ, :, ind_sel), view(ZSHK, :, sim_sel),
+							  view(XF, :, ind_sel), view(XQ, :, i), view(ZSHK, :, sim_sel),
 							  view(USHK, sim_sel), nalt, nsim) * wgt[i]
 	end
 
@@ -53,16 +55,19 @@ end
 
 
 using StatsFuns:logistic, log1pexp
-function individual_llk(bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, alpha, delta,
-						xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr, yl, ym, lnw, lnp, qxj_mig,
-						qxj_lft, xt, xl, xm, xf, xq, zshk, ushk, nalt, nsim)
+function individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif,
+						bz, sigu, alpha, delta, xbm, ln1mlam, xbqj_mig, xbqj_dif,
+						dlnq, lnq_mig, zbr, yl, ym, lnw, lnp, xqj_mig, xt, xl, xm,
+						xf, xq, zshk, ushk, nalt, nsim)
 	##
 	## delta: 		J x 1 Vector
 	## lnw, lnp: 	J x 1 Vector
 	## xbt, xbl: 	scalar
 	## xbm: 		J x 1 Vector
 	## ln1mlam, 	J x 1 Vector
-	## xbq, 		scalar or J Vector
+	## xbq, 		scalar
+	## xbqj_mig,	J x 1 Vector
+	## xbqj_dif,  	J x 1 Vector
 	## zbr, 		S x 1 Vector
 	## ushk:		S x 1 Vector
 	##
@@ -70,12 +75,14 @@ function individual_llk(bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, alph
 	# --- intermediate vars ---
 	xbt = xt' * bt
 	xbl = xl' * bl
+	xbq = xq' * bq
 	mul!(xbm, xm', bm)
 	mul!(ln1mlam, xf', bf)
 	broadcast!(nlog1pexp, ln1mlam, ln1mlam)
 
-	mul!(xbq, xq', bq)
-	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, qxj_mig, qxj_lft, bw, blft, bitr, bqxj)
+	mul!(xbqj_mig, xqj_mig', bqj_mig)
+	mul!(xbqj_dif, xqj_mig', bqj_dif)
+	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, xbqj_mig, xbqj_dif, bw, blft, bitr)
 	mul!(zbr, zshk', bz)
 
 	# --- setup containers ---
@@ -114,13 +121,14 @@ end
 
 function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
-					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
-					 xdim::Int) where T <: AbstractFloat
+					 XQ::AbstractMatrix{T}, XQJ_mig::AbstractMatrix{T},
+					 ZSHK::AbstractMatrix{T}, xdim::Int) where T <: AbstractFloat
 	 nxt = size(XT, xdim)
 	 nxl = size(XL, xdim)
 	 nxm = size(XM, xdim)
 	 nxf = size(XF, xdim)
 	 nxq = size(XQ, xdim)
+	 nxqj = size(XQJ_mig, xdim)
 	 nzr = size(ZSHK, xdim)
 
 	 bt = parm[1:nxt]
@@ -131,13 +139,15 @@ function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 	 blft = parm[nxt + nxl + nxm + nxf + 1]
 	 bw = parm[nxt + nxl + nxm + nxf + 2]
 	 bitr = parm[nxt + nxl + nxm + nxf + 3]
-	 bqxj = parm[nxt + nxl + nxm + nxf + 4]
 
-	 bq = parm[(nxt + nxl + nxm + nxf + 5):(nxt + nxl + nxm + nxf + nxq + 4)]
-	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 5):(nxt + nxl + nxm + nxf + nxq + nzr + 4)] #<- observed household char.
-	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + nzr + 5])
+	 bq = parm[(nxt + nxl + nxm + nxf + 4):(nxt + nxl + nxm + nxf + nxq + 3)]
+	 bqj_mig = parm[(nxt + nxl + nxm + nxf + nxq + 4):(nxt + nxl + nxm + nxf + nxq + 3 + nxqj)]
+	 bqj_dif = parm[(nxt + nxl + nxm + nxf + nxq + 4 + nxqj):(nxt + nxl + nxm + nxf + nxq + 4 + 2*nxqj)]
 
-	 return (bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu)
+	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 2*nxqj + 5):(nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 4)] #<- observed household char.
+	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 5])
+
+	 return (bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu)
 end
 
 # function tadd(x::AbstractVector{T}) where T <: AbstractFloat
@@ -151,8 +161,8 @@ end
 
 function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 						YM::AbstractVector{T}, lnW::AbstractVector{T},
-						lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
-						XQJ_lft::AbstractVector{T}, XT::AbstractMatrix{T},
+						lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
+						XT::AbstractMatrix{T},
 						XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 						XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 						ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
@@ -165,14 +175,14 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 	## XL: 		nl x N Matrix
 	## XM: 		nm x (NJ) Matrix
 	## XF: 		nf x (NJ) Matrix
-	## XQ: 		nq x NJ Matrix
+	## XQ: 		nq x N Matrix
 	## ZSHK: 	nz x (NS) Matrix
 	## USHK:	NS Vector
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu =
-		unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu =
+		unpack_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
 
@@ -184,7 +194,8 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 		#
 		llk_thread = zero(TT)
 		xbm = zeros(TT, nalt)
-		xbq = zeros(TT, nalt)
+		xbqj_mig = zeros(TT, nalt)
+		xbqj_dif = zeros(TT, nalt)
 		ln1mlam = zeros(TT, nalt)
 		lnq_mig = zeros(TT, nalt)
 		dlnq = zeros(TT, nalt)
@@ -195,12 +206,12 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 			sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 			g = view(dgvec, i)
 
-			llk_thread += individual_llk(bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, alpha,
-								  view(Delta, :, g), xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr,
-								  view(YL, ind_sel), view(YM, ind_sel), view(lnW, ind_sel),
-								  view(lnP, ind_sel), view(XQJ_mig, ind_sel), view(XQJ_lft, ind_sel),
-								  view(XT, :, i), view(XL, :, i), view(XM, :, ind_sel),
-								  view(XF, :, ind_sel), view(XQ, :, ind_sel),
+			llk_thread += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif,
+								  bz, sigu, alpha, view(Delta, :, g), xbm, ln1mlam, xbqj_mig,
+								  xbqj_dif, dlnq, lnq_mig, zbr, view(YL, ind_sel),
+								  view(YM, ind_sel), view(lnW, ind_sel), view(lnP, ind_sel),
+								  view(XQJ_mig, :, ind_sel), view(XT, :, i), view(XL, :, i),
+								  view(XM, :, ind_sel), view(XF, :, ind_sel), view(XQ, :, i),
 								  view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim) * wgt[i]
 		end
 		llk[Threads.threadid()] = llk_thread
