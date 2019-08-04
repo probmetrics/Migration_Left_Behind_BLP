@@ -12,9 +12,6 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
     lnW = lnW .- mean(lnW, weights(Vector{Float64}(df[:, :w_l])))
     lnP = Vector{Float64}(df[:, :lnhprice])
 
-    XQJ_mig = Vector{Float64}(df[:, :eexp_fac_ucity])
-    XQJ_lft = Vector{Float64}(df[:, :eexp_fac_rprov])
-
     wgt = Vector{Float64}(df[df[:, :chosen] .== 1, :w_l])
 
     sgwgt = countmap(dgvec, weights(wgt))
@@ -53,7 +50,11 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
     #       we have identification problem.
 
     XQnames = [:cfemale, :cagey, :nchild]
-    XQ = convert(Array{Float64, 2}, df[:, XQnames])
+    XQ = convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XQnames])
+
+    XQJnames = [:tstu2_ratio, :sschool_per]
+    XQJ_mig = convert(Array{Float64, 2}, df[:, XQJnames])
+    XQJ_mig = XQJ_mig .- mean(XQJ_mig, weights(Vector{Float64}(df[:, :w_l])), dims = 1)
 
     if trs == true
         XT = copy(XT')
@@ -61,9 +62,10 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
         XM = copy(XM')
         XF = copy(XF')
         XQ = copy(XQ')
+        XQJ_mig = copy(XQJ_mig')
     end
 
-    return(lnDataShare, Delta_init, lnW, lnP, XQJ_mig, XQJ_lft,
+    return(lnDataShare, Delta_init, lnW, lnP, XQJ_mig,
            wgt, sgwgt, XT, XM, XL, XF, XQ, nalt, nind, dgvec)
 end
 

@@ -1,5 +1,5 @@
 using DataFrames
-function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMname::Symbol, XQJLname::Symbol,
+function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMnames::AbstractVector{Symbol},
                       XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
                       XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol},
                       XQnames::AbstractVector{Symbol}; trs::Bool = false)
@@ -14,10 +14,11 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMname::Symbol, 
     htvec = Vector{Int}(df[df[:, :chosen] .== 1, :hhtype])
 
     lnW = Vector{Float64}(df[:, lnWname])
-    lnW = lnW .- mean(lnW, weights(Vector{Float64}(df[:, :w_l])))
+    wgtvec = Vector{Float64}(df[:w_l])
+	cage9d = Vector{Int}(df[:cage9])
+	lnW = lnW .- mean(view(lnW, cage9d .== 1), weights(view(wgtvec, cage9d .== 1)))
+
     lnP = Vector{Float64}(df[:, :lnhprice])
-    XQJ_mig = Vector{Float64}(df[:, XQJMname])
-    XQJ_lft = Vector{Float64}(df[:, XQJLname])
     wgt = Vector{Float64}(df[df[:, :chosen] .== 1, :w_l])
     dage9vec = Vector{Float64}(df[df[:, :chosen] .== 1, :cage9])
 
@@ -67,8 +68,11 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMname::Symbol, 
     XF = [ones(ndt) convert(Array{Float64, 2}, df[:, XFnames])]
 
     # --- cognitive ability ---
-    # XQnames = [:cfemale, :cagey, :nchild, :tstu2_ratio]
-    XQ = [ones(ndt) convert(Array{Float64, 2}, df[:, XQnames])]
+    # XQnames = [:cfemale, :cagey, :nchild, :]
+    XQ = [ones(nind) convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XQnames])]
+
+    XQJ_mig = convert(Array{Float64, 2}, df[:, XQJMnames])
+	XQJ_mig = XQJ_mig .- mean(view(XQJ_mig, cage9d .== 1, :), weights(view(wgtvec, cage9d .== 1)), dims = 1)
 
     if trs == true
         XT = copy(XT')
@@ -76,8 +80,9 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMname::Symbol, 
         XM = copy(XM')
         XF = copy(XF')
         XQ = copy(XQ')
+        XQJ_mig = copy(XQJ_mig')
     end
 
-    return(lnDataShare, Delta_init, lnW, lnP, XQJ_mig, XQJ_lft, wgt, sgwgt, swgt9,
-            XT, XM, XL, XF, XQ, pr_lft, pr_lft_alt, nalt, nind, dgvec, htvec, dage9vec)
+    return(lnDataShare, Delta_init, lnW, lnP, XQJ_mig, wgt, sgwgt, swgt9, XT, XM,
+            XL, XF, XQ, pr_lft, pr_lft_alt, nalt, nind, dgvec, htvec, dage9vec)
 end
