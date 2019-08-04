@@ -27,15 +27,16 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
 	llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, delta_old, YL, YM, lnW, lnP,
 											XQJ_mig, XT, XL, XM, XF, XQ, ZSHK,
 											USHK, wgt, nind, nalt, nsim, dgvec, alpha, xdim)
-	println("\nInitial value of likelihood function = ", llk_opt_thread(coefx_old))
+	llkv_old = llk_opt_thread(coefx_old)
+	println("\nInitial value of likelihood function = ", llkv_old)
 	algo_bt = BFGS(;alphaguess = LineSearches.InitialStatic(),
 	                linesearch = LineSearches.BackTracking())
 
 	## --- begin the Outer loop ---
 	k = 1
-	coefconv = one(promote_type(eltype(initpar), eltype(lnW)))
+	iter_conv = one(promote_type(eltype(initpar), eltype(lnW)))
     coefx_new = copy(initpar)
-    while coefconv > btolerance
+    while iter_conv > btolerance
         if k > biter
             printstyled("Maximum Iters Reached, NOT Converged!!!\n", color = :light_red)
             break
@@ -58,12 +59,19 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
 		               	  Optim.Options(show_trace = true, iterations = 2000);
 						  autodiff = :forward)
         copyto!(coefx_new, Optim.minimizer(ans_msl))
+		llkv_new = Optim.minimum(ans_msl)
+
         coefconv = mreldif(coefx_new, coefx_old)
         println("The $k", "th iteration, relative coefx difference = ", "$coefconv\n")
 		copyto!(coefx_old, coefx_new)
+
+		llkconv = abs(llkv_new - llkv_old) / abs(1.0 + llkv_new)
+		llk_old = llk_new
+
+		iter_conv = min(coefconv, llkconv)
         k += 1
     end
 
 	## TODO: calculate correct var-vcov matrix
-	return(coefx_new, delta_fpt)
+	return(coefx_new, delta_fpt, llkv_new)
 end

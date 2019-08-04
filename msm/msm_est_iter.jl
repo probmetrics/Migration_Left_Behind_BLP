@@ -3,17 +3,17 @@ using Optim, ForwardDiff, LineSearches
 function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 		lnDataShare::AbstractVector{T}, alpha::T, lnW::AbstractVector{T},
 						lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
-						XQJ_lft::AbstractVector{T}, XT::AbstractMatrix{T},
-				 		XL::AbstractMatrix{T}, XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
-						XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
-						QSHK::AbstractVector{T}, pr_lft::AbstractVector{T},
-						pr_lft_alt::AbstractMatrix{T},
+						XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
+				 		XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
+						XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
+						USHK::AbstractVector{T}, QSHK::AbstractVector{T},
+						pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
 				 		Delta_init::AbstractMatrix{T}, dgvec::AbstractVector{Int},
 				 		htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
 				 		wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
 				 		swgt9::T, nind::Int, nalt::Int,	nsim::Int; xdim::Int = 1,
 						btolerance::T = 1.0e-6, biter::Int = 500,
-						ftolerance::T = 1.0e-12, fpiter::Int = 2000,
+						ftolerance::T = 1.0e-14, fpiter::Int = 2000,
                     	mstep::T = 4.0, stepmin::T = 1.0,
                     	stepmax::T = 1.0, alphaversion::Int = 3) where T <: AbstractFloat
 	##
@@ -31,8 +31,8 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 
 	## --- define GMM optim function ---
 	coefx_old = copy(initpar)
-	msm_opt = parm -> msm_obj(parm, data_mnts, dwt, alpha, lnW, lnP, XQJ_mig, XQJ_lft,
-					 		  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft, pr_lft_alt,
+	msm_opt = parm -> msm_obj(parm, data_mnts, dwt, alpha, lnW, lnP, XQJ_mig,
+						 	  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft, pr_lft_alt,
 					 	  	  delta_old, dgvec, htvec, dage9vec, wgt, sgwgt,
 					 	  	  swgt9, nind, nalt, nsim; xdim = xdim)
 	println("\nInitial GMM object value at fixed deltas = ", msm_opt(coefx_old))
@@ -51,7 +51,7 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 
         # --- BLP contraction mapping to update delta ---
         fpt_squarem!(delta_fpt, delta_new, delta_old, delta_q1, delta_q2, lnDataShare,
-					 coefx_old, lnW, lnP, XQJ_mig, XQJ_lft, XT, XL, XM, XF, XQ, ZSHK,
+					 coefx_old, lnW, lnP, XQJ_mig, XT, XL, XM, XF, XQ, ZSHK,
 					 USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; alpha = alpha,
 					 xdim = xdim, ftolerance = ftolerance, fpiter = fpiter,
 					 mstep = mstep, stepmin_init = stepmin,
