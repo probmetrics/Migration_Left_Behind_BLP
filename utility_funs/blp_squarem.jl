@@ -1,13 +1,13 @@
 function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T},
                       delta_old::AbstractMatrix{T}, delta_q1::AbstractMatrix{T},
 					  delta_q2::AbstractMatrix{T}, lnDataShare::AbstractMatrix{T},
-					  parm::AbstractVector{T}, lnW::AbstractVector{T}, lnP::AbstractVector{T},
-					  XQJ_mig::AbstractVector{T}, XQJ_lft::AbstractVector{T},
+					  parm::AbstractVector{T}, lnW::AbstractVector{T},
+					  lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
 					  XT::AbstractMatrix{T}, XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 					  XF::AbstractMatrix{T}, XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
  					  USHK::AbstractVector{T}, wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
 					  nind::Int, nalt::Int, nsim::Int, dgvec::AbstractVector{Int};
-					  alpha::T = 0.12, xdim::Int = 1, ftolerance::T = 1e-12,
+					  alpha::T = 0.12, xdim::Int = 1, ftolerance::T = 1e-14,
 					  fpiter::Int = 500, mstep::T = 4.0, stepmin_init::T = 1.0,
 					  stepmax_init::T = 1.0, alphaversion::Int = 3) where T <: AbstractFloat
     # default values:
@@ -29,14 +29,14 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
 		end
 		## --- begin the SquareM method ---
 		update_delta!(delta_new, delta_old, lnDataShare, parm, lnW, lnP, XQJ_mig,
-					  XQJ_lft, XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
+					  XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
 					  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
 		@. delta_q1 = delta_new - delta_old
 		trace_print(j)
 		j += 1
 
 		update_delta!(delta_fpt, delta_new, lnDataShare, parm, lnW, lnP, XQJ_mig,
-					  XQJ_lft, XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
+					  XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
 					  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
 		@. delta_q2 = delta_fpt - delta_new
 		trace_print(j)
@@ -46,7 +46,7 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
 		step_alpha = compute_alpha(delta_q1, delta_q2, stepmin, stepmax, alphaversion)
 		@. delta_new = delta_old + 2.0 * step_alpha * delta_q1 + step_alpha^2 * (delta_q2 - delta_q1)
 		update_delta!(delta_fpt, delta_new, lnDataShare, parm, lnW, lnP, XQJ_mig,
-					  XQJ_lft, XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
+					  XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
 					  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
 		trace_print(j)
 		j += 1
@@ -55,12 +55,12 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
 		if ismissing(delta_fpt)
 		    warn("Missing values generated during SquareM mapping, switch to BLP mapping\n")
 		    update_delta!(delta_new, delta_old, lnDataShare, parm, lnW, lnP, XQJ_mig,
-						  XQJ_lft, XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
+						  XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
 						  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
 			j += 1
 			trace_print(j)
             update_delta!(delta_fpt, delta_new, lnDataShare, parm, lnW, lnP, XQJ_mig,
-						  XQJ_lft, XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
+						  XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind,
 						  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
             j += 1
 			trace_print(j)
@@ -86,7 +86,7 @@ end
 function update_delta!(delta_new::AbstractMatrix{T}, delta_old::AbstractMatrix{T},
 					   lnDataShare::AbstractMatrix{T}, parm::AbstractVector{T},
 					   lnW::AbstractVector{T}, lnP::AbstractVector{T},
-					   XQJ_mig::AbstractVector{T}, XQJ_lft::AbstractVector{T},
+					   XQJ_mig::AbstractMatrix{T},
 					   XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					   XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					   XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
@@ -95,7 +95,7 @@ function update_delta!(delta_new::AbstractMatrix{T}, delta_old::AbstractMatrix{T
 					   dgvec::AbstractVector{Int}; alpha::T = 0.12,
 					   xdim::Int = 1) where T <: AbstractFloat
 
-    locpr_thread!(delta_new, parm, delta_old, lnW, lnP, XQJ_mig, XQJ_lft,
+    locpr_thread!(delta_new, parm, delta_old, lnW, lnP, XQJ_mig,
 				  XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind, nalt,
 				  nsim, dgvec; alpha = alpha, xdim = xdim)
 	broadcast!(log, delta_new, delta_new)
@@ -106,8 +106,8 @@ function update_delta!(delta_new::AbstractMatrix{T}, delta_old::AbstractMatrix{T
 end
 
 function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVector{T},
-					   lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
-					   XQJ_lft::AbstractVector{T}, XT::AbstractMatrix{T},
+					   lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
+					   XT::AbstractMatrix{T},
 					   XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 					   XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 					   ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
@@ -120,7 +120,8 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## XL: 		nl x N Matrix
 	## XM: 		nm x (NJ) Matrix
 	## XF: 		nf x (NJ) Matrix
-	## XQ: 		nq x NJ Matrix
+	## XQ: 		nq x N Matrix
+	## XQJ_mig: nq x NJ Matrix
 	## ZSHK: 	nz x (NS) Matrix
 	## USHK:	NS Vector
 	## wgt:		N Vector
@@ -128,8 +129,8 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu =
-				unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu =
+				unpack_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
 	ngrp = maximum(dgvec)
@@ -141,7 +142,8 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 		# NOTE: Need to setup containers for each thread !
 		#
 		xbm = zeros(TT, nalt)
-		xbq = zeros(TT, nalt)
+		xbqj_mig = zeros(TT, nalt)
+		xbqj_dif = zeros(TT, nalt)
 		ln1mlam = zeros(TT, nalt)
 		lnq_mig = zeros(TT, nalt)
 		dlnq = zeros(TT, nalt)
@@ -155,11 +157,11 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 			sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 			g = view(dgvec, i)
 
-			loc_prob_ind!(loc_pri, bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, alpha,
-						  view(Delta, :, g), xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr,
-						  view(lnW, ind_sel), view(lnP, ind_sel), view(XQJ_mig, ind_sel),
-						  view(XQJ_lft, ind_sel), view(XT, :, i), view(XL, :, i),
-						  view(XM, :, ind_sel), view(XF, :, ind_sel), view(XQ, :, ind_sel),
+			loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, alpha,
+						  view(Delta, :, g), xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr,
+						  view(lnW, ind_sel), view(lnP, ind_sel), view(XQJ_mig, :, ind_sel),
+						  view(XT, :, i), view(XL, :, i),
+						  view(XM, :, ind_sel), view(XF, :, ind_sel), view(XQ, :, i),
 						  view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim)
 			BLAS.axpy!(wgt[i], loc_pri, view(mkt_collect, :, g, tid))
 		end
@@ -169,8 +171,8 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 end
 
 function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVector{T},
-						lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
-						XQJ_lft::AbstractVector{T}, XT::AbstractMatrix{T},
+						lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
+						XT::AbstractMatrix{T},
 						XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 						XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 						ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
@@ -183,7 +185,8 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## XL: 		nl x N Matrix
 	## XM: 		nm x (NJ) Matrix
 	## XF: 		nf x (NJ) Matrix
-	## XQ: 		nq x NJ Matrix
+	## XQ: 		nq x N Matrix
+	## XQJ_mig: nq x NJ Matrix
 	## ZSHK: 	nz x (NS) Matrix
 	## USHK:	NS Vector
 	## wgt:		N Vector
@@ -191,14 +194,15 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu =
-		unpack_parm(parm, XT, XL, XM, XF, XQ, ZSHK, xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu =
+		unpack_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
 
 	# --- setup containers  ---
 	xbm = zeros(TT, nalt)
-	xbq = zeros(TT, nalt)
+	xbqj_mig = zeros(TT, nalt)
+	xbqj_dif = zeros(TT, nalt)
 	ln1mlam = zeros(TT, nalt)
 	lnq_mig = zeros(TT, nalt)
 	dlnq = zeros(TT, nalt)
@@ -211,11 +215,11 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 		g = view(dgvec, i)
 
-		loc_prob_ind!(loc_pri, bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, alpha,
-					  view(Delta, :, g), xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr,
-					  view(lnW, ind_sel), view(lnP, ind_sel), view(XQJ_mig, ind_sel),
-					  view(XQJ_lft, ind_sel), view(XT, :, i), view(XL, :, i),
-					  view(XM, :, ind_sel), view(XF, :, ind_sel), view(XQ, :, ind_sel),
+		loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, alpha,
+					  view(Delta, :, g), xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr,
+					  view(lnW, ind_sel), view(lnP, ind_sel), view(XQJ_mig, :, ind_sel),
+					  view(XT, :, i), view(XL, :, i),
+					  view(XM, :, ind_sel), view(XF, :, ind_sel), view(XQ, :, i),
 					  view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim)
 		BLAS.axpy!(wgt[i], loc_pri, view(mktshare, :, g))
 	end
@@ -223,9 +227,9 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 end
 
 using StatsFuns:logistic, log1pexp, softmax!
-function loc_prob_ind!(loc_pri, bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu,
-						alpha, delta, xbm, ln1mlam, xbq, dlnq, lnq_mig, zbr, lnw,
-						lnp, qxj_mig, qxj_lft, xt, xl, xm, xf, xq, zshk, ushk, nalt, nsim)
+function loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu,
+						alpha, delta, xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr, lnw,
+						lnp, xqj_mig, xt, xl, xm, xf, xq, zshk, ushk, nalt, nsim)
 	##
 	## delta: 		J x 1 Vector
 	## lnw, lnp: 	J x 1 Vector
@@ -240,12 +244,14 @@ function loc_prob_ind!(loc_pri, bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, si
 	# --- intermediate vars ---
 	xbt = xt' * bt
 	xbl = xl' * bl
+	xbq = xq' * bq
 	mul!(xbm, xm', bm)
 	mul!(ln1mlam, xf', bf)
 	broadcast!(nlog1pexp, ln1mlam, ln1mlam)
 
-	mul!(xbq, xq', bq)
-	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, qxj_mig, qxj_lft, bw, blft, bitr, bqxj)
+	mul!(xbqj_mig, xqj_mig', bqj_mig)
+	mul!(xbqj_dif, xqj_mig', bqj_dif)
+	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, xbqj_mig, xbqj_dif, bw, blft, bitr)
 	mul!(zbr, zshk', bz)
 
 	# --- setup containers ---
