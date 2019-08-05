@@ -52,7 +52,7 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
     XQnames = [:cfemale, :cagey, :nchild]
     XQ = convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XQnames])
 
-    XQJnames = [:tstu1_ratio, :tstu2_ratio, :pschool_per, :sschool_per]
+    XQJnames = [:tstu2_ratio, :sschool_per]
     XQJ_mig = convert(Array{Float64, 2}, df[:, XQJnames])
 
     if trs == true
@@ -64,7 +64,7 @@ function data_prepare(df::AbstractDataFrame; trs::Bool = false)
         XQJ_mig = copy(XQJ_mig')
     end
 
-    return(lnDataShare, Delta_init, lnW, lnP, XQJ_mig, 
+    return(lnDataShare, Delta_init, lnW, lnP, XQJ_mig,
            wgt, sgwgt, XT, XM, XL, XF, XQ, nalt, nind, dgvec)
 end
 

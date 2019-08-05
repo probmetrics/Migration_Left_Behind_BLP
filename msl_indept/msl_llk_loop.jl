@@ -21,13 +21,14 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bqj, bz, sigu =
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu =
 		unpack_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	# --- setup containers ---
 	TT = promote_type(eltype(parm), eltype(Delta))
 	xbm = zeros(TT, nalt)
 	xbqj_mig = zeros(TT, nalt)
+	xbqj_dif = zeros(TT, nalt)
 	ln1mlam = zeros(TT, nalt)
 	lnq_mig = zeros(TT, nalt)
 	dlnq = zeros(TT, nalt)
@@ -40,8 +41,8 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 		g = view(dgvec, i)
 
-		llk += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj, bz, sigu, alpha,
-							  view(Delta, :, g), xbm, ln1mlam, xbqj_mig, dlnq, lnq_mig, zbr,
+		llk += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, alpha,
+							  view(Delta, :, g), xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr,
 							  view(YL, ind_sel), view(YM, ind_sel), view(lnW, ind_sel),
 							  view(lnP, ind_sel), view(XQJ_mig, :, ind_sel),
 							  view(XT, :, i), view(XL, :, i), view(XM, :, ind_sel),
@@ -54,9 +55,10 @@ end
 
 
 using StatsFuns:logistic, log1pexp
-function individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj, bz, sigu, alpha, delta,
-						xbm, ln1mlam, xbqj_mig, dlnq, lnq_mig, zbr, yl, ym, lnw, lnp, xqj_mig,
-						xt, xl, xm, xf, xq, zshk, ushk, nalt, nsim)
+function individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu,
+						alpha, delta, xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig,
+						zbr, yl, ym, lnw, lnp, xqj_mig, xt, xl, xm, xf, xq, zshk, ushk,
+						nalt, nsim)
 	##
 	## delta: 		J x 1 Vector
 	## lnw, lnp: 	J x 1 Vector
@@ -76,8 +78,9 @@ function individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj, bz, sigu, alpha
 	mul!(ln1mlam, xf', bf)
 	broadcast!(nlog1pexp, ln1mlam, ln1mlam)
 
-	mul!(xbqj_mig, xqj_mig', bqj)
-	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, xbqj_mig, bw, blft, bitr)
+	mul!(xbqj_mig, xqj_mig', bqj_mig)
+	mul!(xbqj_dif, xqj_mig', bqj_dif)
+	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, xbqj_mig, xbqj_dif, bw, blft, bitr)
 	mul!(zbr, zshk', bz)
 
 	# --- setup containers ---
@@ -136,11 +139,13 @@ function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 	 bitr = parm[nxt + nxl + nxm + nxf + 3]
 
 	 bq = parm[(nxt + nxl + nxm + nxf + 4):(nxt + nxl + nxm + nxf + nxq + 3)]
-	 bqj = parm[(nxt + nxl + nxm + nxf + nxq + 4):(nxt + nxl + nxm + nxf + nxq + nxqj + 3)]
-	 bz = parm[(nxt + nxl + nxm + nxf + nxq + nxqj + 4):(nxt + nxl + nxm + nxf + nxq + nxqj + nzr + 3)] #<- observed household char.
-	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + nxqj + nzr + 4])
+	 bqj_mig = parm[(nxt + nxl + nxm + nxf + nxq + 4):(nxt + nxl + nxm + nxf + nxq + nxqj + 3)]
+	 bqj_dif = parm[(nxt + nxl + nxm + nxf + nxq + nxqj + 4):(nxt + nxl + nxm + nxf + nxq + 2*nxqj + 3)]
 
-	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bqj, bz, sigu)
+	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 2*nxqj + 4):(nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 3)] #<- observed household char.
+	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 4])
+
+	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu)
 end
 
 # function tadd(x::AbstractVector{T}) where T <: AbstractFloat
@@ -175,7 +180,7 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bqj, bz, sigu =
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu =
 		unpack_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
@@ -189,6 +194,7 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 		llk_thread = zero(TT)
 		xbm = zeros(TT, nalt)
 		xbqj_mig = zeros(TT, nalt)
+		xbqj_dif = zeros(TT, nalt)
 		ln1mlam = zeros(TT, nalt)
 		lnq_mig = zeros(TT, nalt)
 		dlnq = zeros(TT, nalt)
@@ -199,13 +205,13 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 			sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 			g = view(dgvec, i)
 
-			llk_thread += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj, bz, sigu, alpha,
-								  view(Delta, :, g), xbm, ln1mlam, xbqj_mig, dlnq, lnq_mig, zbr,
-								  view(YL, ind_sel), view(YM, ind_sel), view(lnW, ind_sel),
-								  view(lnP, ind_sel), view(XQJ_mig, :, ind_sel),
-								  view(XT, :, i), view(XL, :, i), view(XM, :, ind_sel),
-								  view(XF, :, ind_sel), view(XQ, :, i),
-								  view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim) * wgt[i]
+			llk_thread += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif,
+										 bz, sigu, alpha, view(Delta, :, g), xbm, ln1mlam,
+										 xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr, view(YL, ind_sel),
+								  		 view(YM, ind_sel), view(lnW, ind_sel),  view(lnP, ind_sel),
+								 	 	 view(XQJ_mig, :, ind_sel), view(XT, :, i), view(XL, :, i),
+								  		 view(XM, :, ind_sel), view(XF, :, ind_sel), view(XQ, :, i),
+								  		 view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim) * wgt[i]
 		end
 		llk[Threads.threadid()] = llk_thread
 	end

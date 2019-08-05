@@ -62,11 +62,15 @@ USHK = dropdims(draw_shock(ndraw; dims = 1); dims = 2) # draw iid standard norma
 ##
 
 XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
+XLnames = [:cfemale, :nchild, :cagey, :cageysq]
+XMnames = [:lndist, :cross_prov, :cross_regn, :lndist_crsprov, :lndist_crsregn,
+		   :amenity_pca_flowdur, :migdist_flowdur, :amenity_pca_highsch_f,
+		   :migdist_highsch_f, :amenity_pca_highsch_m, :migdist_highsch_m,
+		   :amenity_pca_age_f, :migdist_age_f, :amenity_pca_age_m, :migdist_age_m]
 XFnames = [:htreat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
 		   :lnmnw_city, :nchild_lnhp]
-XLnames = [:cfemale, :nchild, :cagey, :cageysq]
 XQnames = [:cfemale, :cagey, :nchild]
-XQJnames = [:tstu1_ratio, :tstu2_ratio, :pschool_per, :sschool_per]
+XQJnames = [:tstu2_ratio, :sschool_per]
 
 lftvar = [XTnames; XFnames; XLnames; XQJnames]
 lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))) + lnhinc_alts)
