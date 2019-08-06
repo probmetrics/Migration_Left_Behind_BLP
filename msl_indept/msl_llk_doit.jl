@@ -45,13 +45,13 @@ DF_master = LeftbhData[LeftbhData[:, :chosen] .== 1,
             [:year, :ID, :cline, :child_leftbh,
             :highsch_f, :highsch_m]]
 rename!(DF_master, :child_leftbh => :leftbh)
-zshk_vars = [:caring_study, :college_expect]
+Znames = [:caring_study, :college_expect]
 match_vars = [:leftbh, :highsch_f, :highsch_m]
 
 Random.seed!(20190610);
 ZSHK = map(1:nrow(DF_master)) do i
     bdf = filter(df -> df[match_vars] == DF_master[i, match_vars], MigBootData)
-    Matrix{Float64}(boot_df(bdf, zshk_vars; nboot = nsim))
+    Matrix{Float64}(boot_df(bdf, Znames; nboot = nsim))
 end
 ZSHK = vcat(ZSHK...)
 ZSHK = copy(ZSHK')
@@ -83,19 +83,19 @@ lft_init = coef(lft_fit)
 ##
 
 nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
-		size(XQ, 1) + size(XQJ_mig, 1) + size(ZSHK, 1) + 1
+		size(XQ, 1) + 2*size(XQJ_mig, 1) + size(ZSHK, 1) + 1
 
 xt_init = [3.0; lft_init[2:size(XT, 1)]]
 xf_init = lft_init[(size(XT, 1) + 1):(size(XT, 1) + size(XF, 1) - 1)]
 xl_init = lft_init[(size(XT, 1) + size(XF, 1)):(size(XT, 1) + size(XF, 1) + size(XL, 1) - 1)]
 xm_init = zeros(size(XM, 1))
 xq_init = zeros(size(XQ, 1))
-xqj_init = -lft_init[(end-size(XQJ_mig, 1)):end-1]
+xqj_init = lft_init[(end-size(XQJ_mig, 1)):end-1]
 bw = 0.194
 blft = -0.148
 bitr = -0.167
 initval = [xt_init; xl_init; xm_init; 0; xf_init; blft; bw; bitr;
-		   xq_init; xqj_init; zeros(2); -2]
+		   xq_init; zeros(length(xqj_init)); xqj_init; zeros(2); -3]
 
 # --- iterative maximization ---
 ret_msl = msl_est_iter(initval, lnDataShare, Delta_init, YL, YM, lnW, lnP, XQJ_mig,

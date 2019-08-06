@@ -65,13 +65,14 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
         println("The $k", "th iteration, relative coefx difference = ", "$coefconv\n")
 		copyto!(coefx_old, coefx_new)
 
-		llkconv = abs(llkv_new - llkv_old) / abs(1.0 + llkv_new)
-		llk_old = llk_new
+		llkconv = abs(llkv_new - llkv_old)
+		println("The $k", "th iteration, log-likelihood difference = ", "$llkconv\n")
+		llkv_old = llkv_new
 
 		iter_conv = min(coefconv, llkconv)
         k += 1
     end
 
 	## TODO: calculate correct var-vcov matrix
-	return(coefx_new, delta_fpt, llkv_new)
+	return(coefx_new, delta_fpt, llkv_old)
 end
