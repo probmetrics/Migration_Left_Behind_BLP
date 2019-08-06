@@ -1,7 +1,7 @@
 function msm_obj(parm, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 alpha::T, lnW::AbstractVector{T}, lnP::AbstractVector{T},
-				 XQJ_mig::AbstractVector{T}, XQJ_lft::AbstractVector{T},
-				 XT::AbstractMatrix{T}, XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
+				 XQJ_mig::AbstractMatrix{T}, XT::AbstractMatrix{T},
+				 XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 				 XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 				 ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T}, QSHK::AbstractVector{T},
 				 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
@@ -11,10 +11,11 @@ function msm_obj(parm, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 swgt9::T, nind::Int, nalt::Int,
 				 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
-	mnt_par = get_moments_thread(parm, alpha, lnW, lnP, XQJ_mig, XQJ_lft, XT, XL, XM, XF, XQ,
-								 ZSHK, USHK, QSHK, pr_lft, pr_lft_alt, Delta_init,
+	mnt_par = get_moments_thread(parm, alpha, lnW, lnP, XQJ_mig, XT, XL, XM, XF, XQ,
+								 ZSHK, USHK, QSHK, pr_lft, pr_lft_alt, Delta,
 								 dgvec, htvec, dage9vec, wgt, sgwgt, swgt9, nind,
 								 nalt, nsim; xdim = xdim)
+
 	gmnt = mnt_par - data_mnts
 	broadcast!(*, gmnt, gmnt, dwt, gmnt)
 	obj = sum(gmnt)
@@ -22,8 +23,7 @@ function msm_obj(parm, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 end
 
 function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
-					 lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
-					 XQJ_lft::AbstractVector{T},
+					 lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
 					 XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
@@ -35,9 +35,9 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 					 swgt9::T, nind::Int, nalt::Int,
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
-	bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu,
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu,
 	rhoq, sigq, mnt_idx, mnt_drop, mnt_cage9 =
-			unpack_parm_msm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
+			unpack_parm_msm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, nalt, xdim)
 
 	# --- common variables ---
 	TT = promote_type(eltype(parm), eltype(lnW))
@@ -66,29 +66,30 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 		xf_xt_p = zeros(TT, length(bf), length(bt))
 
 		xbm = zeros(TT, nalt)
-		xbq = zeros(TT, nalt)
+		xbqj_mig = zeros(TT, nalt)
+		xbqj_dif = zeros(TT, nalt)
 		ln1mlam = zeros(TT, nalt)
 		lnq_mig = zeros(TT, nalt)
 		lnq_lft = zeros(TT, nalt)
 		dlnq = zeros(TT, nalt)
 		zbr = zeros(TT, nsim)
+		xqj_mig_ntmp = zeros(TT, length(bqj_mig))
 
 		@fastmath @inbounds for i in get_thread_range(nind)
 			ind_sel = (1 + nalt * (i - 1)):(i * nalt)
 			sim_sel = (1 + nsim * (i - 1)):(i * nsim)
-			g = view(dgvec, i)
+			g = dgvec[i]
 			ht = htvec[i]
 			dage9 = dage9vec[i]
 
 			individual_mnts!(mntvec_thread, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
 							 locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, xf_xt_p, # <-- containers
-							 xbm, ln1mlam, xbq, dlnq, lnq_mig, lnq_lft, zbr, #<-- containers again
-							 bw, blft, bitr, bt, bl, bm, bf, bq, bqxj, bz, sigu, rhoq, sigq, #<-- endogeneous params
+							 xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp,  #<-- containers again
+							 bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq, #<-- endogeneous params
 							 alpha, view(Delta, :, g), pr_lft[ht], view(pr_lft_alt, :, ht),
 							 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
 							 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
-							 view(XQJ_mig, ind_sel), view(XQJ_lft, ind_sel),
-							 view(XQ, :, ind_sel), dage9, view(ZSHK, :, sim_sel),
+							 view(XQJ_mig, :, ind_sel), view(XQ, :, i), dage9, view(ZSHK, :, sim_sel),
 							 view(USHK, sim_sel), view(QSHK, sim_sel), nalt, nsim, unit)
 			BLAS.axpy!(wgt[i], mntvec_thread, view(mntmat_thread, :, ht))
 		end
@@ -111,8 +112,7 @@ end
 
 
 function get_moments(parm, alpha::T, lnW::AbstractVector{T},
-					 lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
-					 XQJ_lft::AbstractVector{T},
+					 lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
 					 XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
@@ -124,9 +124,9 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 					 swgt9::T, nind::Int, nalt::Int,
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
-	bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu,
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu,
 	rhoq, sigq, mnt_idx, mnt_drop, mnt_cage9 =
-			unpack_parm_msm(parm, XT, XL, XM, XF, XQ, ZSHK, nalt, xdim)
+			unpack_parm_msm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, nalt, xdim)
 
 	TT = promote_type(eltype(parm), eltype(lnW))
 	unit = one(TT)
@@ -147,28 +147,30 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 	xf_xt_p = zeros(TT, length(bf), length(bt))
 
 	xbm = zeros(TT, nalt)
-	xbq = zeros(TT, nalt)
+	xbqj_mig = zeros(TT, nalt)
+	xbqj_dif = zeros(TT, nalt)
 	ln1mlam = zeros(TT, nalt)
 	lnq_mig = zeros(TT, nalt)
 	lnq_lft = zeros(TT, nalt)
 	dlnq = zeros(TT, nalt)
 	zbr = zeros(TT, nsim)
+	xqj_mig_ntmp = zeros(TT, length(bqj_mig))
 
 	@fastmath @inbounds @simd for i = 1:nind
 		ind_sel = (1 + nalt * (i - 1)):(i * nalt)
 		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
-		g = view(dgvec, i)
+		g = dgvec[i]
 		ht = htvec[i]
 		dage9 = dage9vec[i]
 
 		individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
 						 locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, xf_xt_p, # <-- containers
-						 xbm, ln1mlam, xbq, dlnq, lnq_mig, lnq_lft, zbr, #<-- containers again
-						 bw, blft, bitr, bt, bl, bm, bf, bq, bqxj, bz, sigu, rhoq, sigq, #<-- endogeneous params
+						 xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp, #<-- containers again
+						 bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq, #<-- endogeneous params
 		  				 alpha, view(Delta, :, g), pr_lft[ht], view(pr_lft_alt, :, ht),
 						 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
 						 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
-						 view(XQJ_mig, ind_sel), view(XQJ_lft, ind_sel), view(XQ, :, ind_sel),
+						 view(XQJ_mig, :, ind_sel), view(XQ, :, i),
 						 dage9, view(ZSHK, :, sim_sel), view(USHK, sim_sel),
 						 view(QSHK, sim_sel), nalt, nsim, unit)
 		BLAS.axpy!(wgt[i], mntvec, view(mntmat, :, ht))
@@ -198,12 +200,13 @@ end
 #
 using StatsFuns:log1pexp, logistic
 using LinearAlgebra:dot
+using StatsBase:wsum!, wsum
 function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
 						  locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, xf_xt_p, # <-- containers
-						  xbm, ln1mlam, xbq, dlnq, lnq_mig, lnq_lft, zbr, #<-- containers again
-						  bw, blft, bitr, bt, bl, bm, bf, bq, bqxj, bz, sigu, rhoq, sigq, #<-- endogeneous params
+						  xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp, #<-- containers again
+						  bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq, #<-- endogeneous params
   						  alpha, delta,	pr_lft_h, pr_lft_alt_h, lnw, lnp, xt, xl, xm, xf,  #<-- exogeneous params and data
-						  qxj_mig, qxj_lft, xq, dage9, zshk, ushk, qshk, nalt, nsim, unit)
+						  xqj_mig, xq, dage9, zshk, ushk, qshk, nalt, nsim, unit)
 	##
 	## mntvec = nalt + nXM + 2*nXF + 2*lnW + nXL + nXT + 2*nZS
 	##		  + nZS * (lnW + ZQj) + 2*(nXQ + QJ + lnW) + 2
@@ -212,12 +215,11 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	##
 	## delta: 		J x 1 Vector
 	## lnw, lnp: 	J x 1 Vector
-	## qxj_mig, 	J x 1 Vector
-	## qxj_lft,		J x 1 Vector
+	## xqj_mig, 	nxqj x J Matrix
 	## xbt, xbl: 	scalar
 	## xbm: 		J x 1 Vector
 	## ln1mlam, 	J x 1 Vector
-	## xbq, 		scalar or J Vector
+	## xbq, 		scalar
 	## zbr, 		S x 1 Vector
 	## zshk, 		nZ x S Matrix
 	## ushk,		S x 1 Vector
@@ -229,12 +231,14 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	# --- intermediate vars ---
 	xbt = xt' * bt
 	xbl = xl' * bl
+	xbq = xq' * bq
 	mul!(xbm, xm', bm)
 	mul!(ln1mlam, xf', bf)
 	broadcast!(nlog1pexp, ln1mlam, ln1mlam)
 
-	mul!(xbq, xq', bq)
-	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, qxj_mig, qxj_lft, bw, blft, bitr, bqxj)
+	mul!(xbqj_mig, xqj_mig', bqj_mig)
+	mul!(xbqj_dif, xqj_mig', bqj_dif)
+	lnq_alt!(lnq_mig, dlnq, lnw, ln1mlam, xbq, xbqj_mig, xbqj_dif, bw, blft, bitr)
 	broadcast!(+, lnq_lft, lnq_mig, dlnq)
 	mul!(zbr, zshk', bz)
 
@@ -290,14 +294,22 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 		# BLAS.axpy!(dot(lnw, locpr_is), zshk, zlnw_mnt)
 		BLAS.axpy!(dot(lnw, locpr_is), view(zshk, :, s), view(mntvec, mnt_range[13]))
 
-		# --- 5-3 interaction between z and qxj_lft, qxj_mig: E(z'qxj|k) ---
+		# --- 5-3 interaction between z and xqj_mig: E(z'xqj|k) ---
 		# broadcast!(*, nalt_tmp, lnqx, lftpr_is, locpr_is)
 		# BLAS.axpy!(sum(nalt_tmp), zshk, zlnqx_mnt)
 		broadcast!((x, y) -> x - x * y, nalt_tmp, lftpr_is, locpr_is)
-		BLAS.axpy!(dot(qxj_mig, nalt_tmp), view(zshk, :, s), view(mntvec, mnt_range[14]))
+		wsum!(xqj_mig_ntmp, xqj_mig, nalt_tmp, 2)
+		# mul!(zshk_xqj, view(zshk, :, s), xqj_mig_ntmp')
+		# BLAS.axpy!(unit, vec(zshk_xqj), view(mntvec, mnt_range[14]))
+		outer_vec!(view(mntvec, mnt_range[14]), view(zshk, :, s), xqj_mig_ntmp)
+		# BLAS.axpy!(dot(xqj_mig, nalt_tmp), view(zshk, :, s), view(mntvec, mnt_range[14]))
 
 		broadcast!(*, nalt_tmp, lftpr_is, locpr_is)
-		BLAS.axpy!(dot(qxj_lft, nalt_tmp), view(zshk, :, s), view(mntvec, mnt_range[15]))
+		wsum!(xqj_mig_ntmp, xqj_mig, nalt_tmp, 2)
+		outer_vec!(view(mntvec, mnt_range[15]), view(zshk, :, s), xqj_mig_ntmp)
+		# mul!(zshk_xqj, view(zshk, :, s), xqj_mig_ntmp')
+		# BLAS.axpy!(unit, vec(zshk_xqj), view(mntvec, mnt_range[15]))
+		# BLAS.axpy!(dot(xqj_mig, nalt_tmp), view(zshk, :, s), view(mntvec, mnt_range[15]))
 
 		uc_lft_pr += ucpr_lft_is
         lftshare .+= lftpr_is
@@ -365,9 +377,11 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	broadcast!((x, y, z, u) -> x + y / (u - z), lnq_mig, lnq_mig, lnqrnd_migj, pr_lft_alt_h, unit)
 	broadcast!(*, nalt_tmp, lnq_mig, mktshare, dage9)
 	# mul!(xq_lnq_mig, xq, nalt_tmp)
-	mul!(view(mntvec, mnt_range[16]), xq, nalt_tmp)
-	# qxj_lnq_mig = dot(qxj_mig, nalt_tmp)
-	view(mntvec, mnt_range[17]) .= dot(qxj_mig, nalt_tmp)
+	# mul!(view(mntvec, mnt_range[16]), xq, nalt_tmp)
+	BLAS.axpy!(sum(nalt_tmp), xq, view(mntvec, mnt_range[16]))
+	# xqj_lnq_mig = dot(xqj_mig, nalt_tmp)
+	mul!(view(mntvec, mnt_range[17]), xqj_mig, nalt_tmp)
+	# view(mntvec, mnt_range[17]) .= dot(xqj_mig, nalt_tmp)
 	# lnwq_mig = dot(lnw, nalt_tmp)
 	view(mntvec, mnt_range[20]) .= dot(lnw, nalt_tmp)
 
@@ -379,9 +393,11 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	broadcast!((x, y, z) -> x + y / z, lnq_lft, lnq_lft, lnqrnd_lftj, pr_lft_alt_h)
 	broadcast!(*, nalt_tmp, lnq_lft, mktshare, dage9)
 	# mul!(xq_lnq_lft, xq, nalt_tmp)
-	mul!(view(mntvec, mnt_range[18]), xq, nalt_tmp)
-	# qxj_lnq_lft = dot(qxj_lft, nalt_tmp)
-	view(mntvec, mnt_range[19]) .= dot(qxj_lft, nalt_tmp)
+	# mul!(view(mntvec, mnt_range[18]), xq, nalt_tmp)
+	BLAS.axpy!(sum(nalt_tmp), xq, view(mntvec, mnt_range[18]))
+	# xqj_lnq_lft = dot(xqj_lft, nalt_tmp)
+	mul!(view(mntvec, mnt_range[19]), xqj_mig, nalt_tmp)
+	# view(mntvec, mnt_range[19]) .= dot(xqj_lft, nalt_tmp)
 	# lnwq_lft = dot(lnw, nalt_tmp)
 	view(mntvec, mnt_range[21]) .= dot(lnw, nalt_tmp)
 
@@ -389,21 +405,22 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	# lnq2_lft = dot(lnq_lft, nalt_tmp)
 	view(mntvec, mnt_range[23]) .= dot(lnq_lft, nalt_tmp)
 
-	# vcat(lftshare, xm_mnt, xf_mnt, xf_mnt_lft, mlnw, mlnw_lft, xl_mnt, xt_mnt,
-	# 	   xt_lnw_mnt, xf_xt_p, zm_mnt_mig, zm_mnt_lft, zlnw_mnt, zqxj_mig_mnt,
-	# 	   zqxj_lft_mnt, xq_lnq_mig, qxj_lnq_mig, xq_lnq_lft, qxj_lnq_lft,
-	#	   lnwq_mig, lnwq_lft, lnq2_mig, lnq2_lft)
+	# vcat(lftshare(154), xm_mnt(15), xf_mnt(7), xf_mnt_lft(7), mlnw(1), mlnw_lft(1), xl_mnt(4), xt_mnt(5),
+	# 	   xt_lnw_mnt(5), xf_xt_p(35), zm_mnt_mig(2), zm_mnt_lft(2), zlnw_mnt(2), zxqj_mig_mnt(4),
+	# 	   zxqj_lft_mnt(4), xq_lnq_mig(6), xqj_lnq_mig(6), xq_lnq_lft(2), xqj_lnq_lft(2),
+	#	   lnwq_mig(1), lnwq_lft(1), lnq2_mig(1), lnq2_lft(1))
 end
 
 function unpack_parm_msm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					 	 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
-					 	 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
-					 	 nalt::Int, xdim::Int) where T <: AbstractFloat
+					 	 XQ::AbstractMatrix{T}, XQJ_mig::AbstractMatrix{T},
+						 ZSHK::AbstractMatrix{T}, nalt::Int, xdim::Int) where T <: AbstractFloat
 	 nxt = size(XT, xdim)
 	 nxl = size(XL, xdim)
 	 nxm = size(XM, xdim)
 	 nxf = size(XF, xdim)
 	 nxq = size(XQ, xdim)
+	 nxqj = size(XQJ_mig, xdim)
 	 nzr = size(ZSHK, xdim)
 
 	 bt = parm[1:nxt]
@@ -414,22 +431,23 @@ function unpack_parm_msm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 	 blft = parm[nxt + nxl + nxm + nxf + 1]
 	 bw = parm[nxt + nxl + nxm + nxf + 2]
 	 bitr = parm[nxt + nxl + nxm + nxf + 3]
-	 bqxj = parm[nxt + nxl + nxm + nxf + 4]
-	 bq = parm[(nxt + nxl + nxm + nxf + 5):(nxt + nxl + nxm + nxf + nxq + 4)]
 
-	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 5):(nxt + nxl + nxm + nxf + nxq + nzr + 4)] #<- observed household char.
+	 bq = parm[(nxt + nxl + nxm + nxf + 4):(nxt + nxl + nxm + nxf + nxq + 3)]
+	 bqj_mig = parm[(nxt + nxl + nxm + nxf + nxq + 4):(nxt + nxl + nxm + nxf + nxq + 3 + nxqj)]
+	 bqj_dif = parm[(nxt + nxl + nxm + nxf + nxq + 4 + nxqj):(nxt + nxl + nxm + nxf + nxq + 3 + 2*nxqj)]
 
-	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + nzr + 5])
-	 rhoq = tanh(parm[nxt + nxl + nxm + nxf + nxq + nzr + 6])
-	 sigq = exp(parm[nxt + nxl + nxm + nxf + nxq + nzr + 7])
+	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 2*nxqj + 4):(nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 3)] #<- observed household char.
+	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 4])
+	 rhoq = tanh(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 5])
+	 sigq = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 6])
 
 	 mnt_idx = [nalt, nxm, nxf, nxf, 1, 1, nxl, nxt, nxt - 1, (nxf - 1) * (nxt - 1),
-	 			nzr, nzr, nzr, nzr, nzr, nxq, 1, nxq, 1, 1, 1, 1, 1]
+	 			nzr, nzr, nzr, nzr*nxqj, nzr*nxqj, nxq, nxqj, nxq, nxqj, 1, 1, 1, 1]
 	 mnt_drop = [collect(1:nalt); nalt + nxm + 1; nalt + nxm + nxf + 1;
 	 			 nalt + nxm + 2*nxf + 3 + nxl]
-	 mnt_cage9 = collect((sum(mnt_idx) - 2*nxq - 5):sum(mnt_idx))
+	 mnt_cage9 = collect((sum(mnt_idx) - 2*nxq - 2*nxqj - 3):sum(mnt_idx))
 
-	 return (bw, blft, bitr, bqxj, bt, bl, bm, bf, bq, bz, sigu, rhoq, sigq,
+	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq,
 	 		 mnt_idx, mnt_drop, mnt_cage9)
 end
 
@@ -448,4 +466,16 @@ function get_thread_range(n)
     from = (tid - 1) * d + min(r, tid - 1) + 1
     to = from + d - 1 + (tid <= r ? 1 : 0)
     from:to
+end
+
+
+function outer_vec!(R, A, B)
+	# length(R) == length(A) * length(B) || error("dimension mismatch between R and A*B")
+	k = 1
+	@fastmath @inbounds for i = eachindex(B)
+		for j = eachindex(A)
+			R[k] += A[j] * B[i]
+			k += 1
+		end
+	end
 end

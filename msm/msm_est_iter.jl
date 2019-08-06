@@ -2,7 +2,7 @@
 using Optim, ForwardDiff, LineSearches
 function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 		lnDataShare::AbstractVector{T}, alpha::T, lnW::AbstractVector{T},
-						lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
+						lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
 						XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 				 		XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 						XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
@@ -35,13 +35,14 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 						 	  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft, pr_lft_alt,
 					 	  	  delta_old, dgvec, htvec, dage9vec, wgt, sgwgt,
 					 	  	  swgt9, nind, nalt, nsim; xdim = xdim)
-	println("\nInitial GMM object value at fixed deltas = ", msm_opt(coefx_old))
+	msmv_old = msm_opt(coefx_old)
+	println("\nInitial GMM object value at fixed deltas = ", msmv_old)
 	algo_bt = BFGS(;alphaguess = LineSearches.InitialStatic(),
 	                linesearch = LineSearches.BackTracking())
 
 	## --- begin the Outer loop ---
 	k = 1
-	coefconv = one(promote_type(eltype(initpar), eltype(data_mnts)))
+	iter_conv = one(promote_type(eltype(initpar), eltype(data_mnts)))
     coefx_new = copy(initpar)
     while coefconv > btolerance
         if k > biter
@@ -66,12 +67,20 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 		               	  Optim.Options(show_trace = true, iterations = 2000);
 						  autodiff = :forward)
         copyto!(coefx_new, Optim.minimizer(ret_msm))
+		msmv_new = Optim.minimum(ret_msm)
+
         coefconv = mreldif(coefx_new, coefx_old)
         println("The $k", "th iteration, relative coefx difference = ", "$coefconv\n")
 		copyto!(coefx_old, coefx_new)
+
+		msmconv = abs(msmv_new - msmv_old)
+		println("The $k", "th iteration, msm objective difference = ", "$msmconv\n")
+		msmv_old = msmv_new
+
+		iter_conv = min(coefconv, msmconv)
         k += 1
     end
 
 	## TODO: calculate correct var-vcov matrix
-	return(coefx_new, delta_fpt)
+	return(coefx_new, delta_fpt, msmv_old)
 end

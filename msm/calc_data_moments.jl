@@ -149,11 +149,11 @@ function data_moments_zcog(df::AbstractDataFrame, lnWname::Symbol,
 	tmp_df = dropmissing(df[[Znames; XQJMnames; :leftbh]], disallowmissing = true)
 	zxqj_mig_mnt = colwise(x -> mean(x .* Matrix(view(tmp_df, tmp_df[:, :leftbh] .== 0, XQJMnames)), dims = 1),
 							view(tmp_df, tmp_df[:, :leftbh] .== 0, Znames))
-	zxqj_mig_mnt = vec(hcat(zxqj_mig_mnt...))
+	zxqj_mig_mnt = vec(vcat(zxqj_mig_mnt...))
 
 	zxqj_lft_mnt = colwise(x -> mean(x .* Matrix(view(tmp_df, tmp_df[:, :leftbh] .== 1, XQJMnames)), dims = 1),
 							view(tmp_df, tmp_df[:, :leftbh] .== 1, Znames))
-	zxqj_lft_mnt = vec(hcat(zxqj_lft_mnt...))
+	zxqj_lft_mnt = vec(vcat(zxqj_lft_mnt...))
 
 	# --- E(lnq|k) & E(xq'lnq | k) ---
 	tmp_df = dropmissing(df[[XQnames; XQJMnames; lnQname; lnWname; :leftbh]],

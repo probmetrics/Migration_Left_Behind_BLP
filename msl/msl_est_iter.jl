@@ -1,7 +1,7 @@
 using Optim, LineSearches, ForwardDiff
 function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::AbstractMatrix{T},
 					  YL::AbstractVector{T}, YM::AbstractVector{T}, lnW::AbstractVector{T},
-					  lnP::AbstractVector{T}, XQJ_mig::AbstractVector{T},
+					  lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
 					  XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 					  XM::AbstractMatrix{T}, XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
 					  ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T}, wgt::AbstractVector{T},
