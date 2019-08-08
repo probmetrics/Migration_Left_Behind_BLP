@@ -3,8 +3,8 @@ function msm_obj(parm, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 XQJ_mig::AbstractMatrix{T}, XT::AbstractMatrix{T},
 				 XL::AbstractMatrix{T}, XM::AbstractMatrix{T},
 				 XF::AbstractMatrix{T}, XQ::AbstractMatrix{T},
-				 ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T}, QSHK::AbstractVector{T},
-				 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
+				 ZSHK::AbstractMatrix{T}, USHK::AbstractVector{T},
+				 QSHK::AbstractVector{T}, pr_lft::AbstractVector{T},
 				 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
 				 htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
 				 wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
@@ -12,8 +12,8 @@ function msm_obj(parm, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
 	mnt_par = get_moments_thread(parm, alpha, lnW, lnP, XQJ_mig, XT, XL, XM, XF, XQ,
-								 ZSHK, USHK, QSHK, pr_lft, pr_lft_alt, Delta,
-								 dgvec, htvec, dage9vec, wgt, sgwgt, swgt9, nind,
+								 ZSHK, USHK, QSHK, pr_lft, Delta, dgvec, htvec,
+								 dage9vec, wgt, sgwgt, swgt9, nind,
 								 nalt, nsim; xdim = xdim)
 
 	gmnt = mnt_par - data_mnts
@@ -28,7 +28,7 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
 					 USHK::AbstractVector{T}, QSHK::AbstractVector{T},
-					 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
+					 pr_lft::AbstractVector{T},
 					 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
 					 htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
 					 wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
@@ -58,10 +58,7 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 		mktshare = zeros(TT, nalt)
 		lftshare = zeros(TT, nalt)
 		lftpr_is = zeros(TT, nalt)
-		migpr_is = zeros(TT, nalt)
 		locpr_is = zeros(TT, nalt)
-		lnqrnd_lftj = zeros(TT, nalt)
-		lnqrnd_migj = zeros(TT, nalt)
 		nalt_tmp = zeros(TT, nalt)
 		xf_xt_p = zeros(TT, length(bf), length(bt))
 
@@ -82,11 +79,11 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 			ht = htvec[i]
 			dage9 = dage9vec[i]
 
-			individual_mnts!(mntvec_thread, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
-							 locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, xf_xt_p, # <-- containers
-							 xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp,  #<-- containers again
+			individual_mnts!(mntvec_thread, mnt_range, mktshare, lftshare, lftpr_is,
+							 locpr_is, nalt_tmp, xf_xt_p, xbm, ln1mlam, # <-- containers
+							 xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp,  #<-- containers again
 							 bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq, #<-- endogeneous params
-							 alpha, view(Delta, :, g), pr_lft[ht], view(pr_lft_alt, :, ht),
+							 alpha, view(Delta, :, g), pr_lft[ht],
 							 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
 							 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
 							 view(XQJ_mig, :, ind_sel), view(XQ, :, i), dage9, view(ZSHK, :, sim_sel),
@@ -117,7 +114,7 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					 XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
 					 USHK::AbstractVector{T}, QSHK::AbstractVector{T},
-					 pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
+					 pr_lft::AbstractVector{T},
 					 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
 					 htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
 					 wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
@@ -139,10 +136,7 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 	mktshare = zeros(TT, nalt)
 	lftshare = zeros(TT, nalt)
 	lftpr_is = zeros(TT, nalt)
-	migpr_is = zeros(TT, nalt)
 	locpr_is = zeros(TT, nalt)
-	lnqrnd_lftj = zeros(TT, nalt)
-	lnqrnd_migj = zeros(TT, nalt)
 	nalt_tmp = zeros(TT, nalt)
 	xf_xt_p = zeros(TT, length(bf), length(bt))
 
@@ -163,11 +157,11 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 		ht = htvec[i]
 		dage9 = dage9vec[i]
 
-		individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
-						 locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, xf_xt_p, # <-- containers
-						 xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp, #<-- containers again
+		individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
+						 locpr_is, nalt_tmp, xf_xt_p, xbm, ln1mlam, xbqj_mig, # <-- containers
+						 xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp, #<-- containers again
 						 bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq, #<-- endogeneous params
-		  				 alpha, view(Delta, :, g), pr_lft[ht], view(pr_lft_alt, :, ht),
+		  				 alpha, view(Delta, :, g), pr_lft[ht],
 						 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
 						 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
 						 view(XQJ_mig, :, ind_sel), view(XQ, :, i),
@@ -200,12 +194,11 @@ end
 #
 using StatsFuns:log1pexp, logistic
 using LinearAlgebra:dot
-using StatsBase:wsum!, wsum
-function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr_is,
-						  locpr_is, lnqrnd_lftj, lnqrnd_migj, nalt_tmp, xf_xt_p, # <-- containers
-						  xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp, #<-- containers again
+function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
+						  locpr_is, nalt_tmp, xf_xt_p, xbm, ln1mlam, xbqj_mig,  # <-- containers
+						  xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp, #<-- containers again
 						  bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq, #<-- endogeneous params
-  						  alpha, delta,	pr_lft_h, pr_lft_alt_h, lnw, lnp, xt, xl, xm, xf,  #<-- exogeneous params and data
+  						  alpha, delta,	pr_lft_h, lnw, lnp, xt, xl, xm, xf,  #<-- exogeneous params and data
 						  xqj_mig, xq, dage9, zshk, ushk, qshk, nalt, nsim, unit)
 	##
 	## mntvec = nalt + nXM + 2*nXF + 2*lnW + nXL + nXT + 2*nZS
@@ -229,6 +222,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	nxf, nxt = size(xf_xt_p)
 
 	# --- intermediate vars ---
+	pr_mig_h = unit - pr_lft_h
 	xbt = xt' * bt
 	xbl = xl' * bl
 	xbq = xq' * bq
@@ -245,15 +239,16 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	# --- output containers ---
 	TT = promote_type(eltype(bw), eltype(lnw))
 	uc_lft_pr = zero(TT)
+	lnqrnd_lft = zero(TT)
+	lnqrnd_mig = zero(TT)
+	lnqrnd2_lft = zero(TT)
+	lnqrnd2_mig = zero(TT)
+	lnw_qrnd_lft = zero(TT)
+	lnw_qrnd_mig = zero(TT)
+
 	fill!(mntvec, zero(TT))
 	fill!(mktshare, zero(TT))
 	fill!(lftshare, zero(TT))
-	fill!(lnqrnd_lftj, zero(TT))
-	fill!(lnqrnd_migj, zero(TT))
-	# fill!(zm_mnt_lft, zero(TT))
-	# fill!(zm_mnt_mig, zero(TT))
-	# fill!(zlnw_mnt, zero(TT))
-	# fill!(zlnqx_mnt, zero(TT))
 
     for s = 1:nsim
 		zrnd = zbr[s]
@@ -265,7 +260,6 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
         for j = 1:nalt
             # --- 1. leftbh prob ---
 			lftpr_is[j] = leftbh_prob(theta, ln1mlam[j], xbl, dlnq[j])
-			migpr_is[j] = unit - lftpr_is[j]
 
             # --- 2. location specific utility ---
 			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta)
@@ -276,40 +270,43 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 
 		ucpr_lft_is = dot(lftpr_is, locpr_is) # <-- unconditional left-behind prob.
 
-		# --- 4-2. choice probability weighted lnqrnd: E(lnqrnd|k,j) ---
-		BLAS.axpy!(lnqrnd, lftpr_is, lnqrnd_lftj)
-		BLAS.axpy!(lnqrnd, migpr_is, lnqrnd_migj)
+		# --- 4-2. choice probability weighted lnqrnd: E(lnqrnd|k) ---
+		lnqrnd_lft += lnqrnd * ucpr_lft_is
+		lnqrnd_mig += lnqrnd * (unit - ucpr_lft_is)
+		lnqrnd2_lft += lnqrnd^2 * ucpr_lft_is
+		lnqrnd2_mig += lnqrnd^2 * (unit - ucpr_lft_is)
 
 		# --- 5-1 moments for zshk: E(z|k) ---
-		# BLAS.axpy!(ucpr_lft_is, zshk, zm_mnt_lft)
-		# BLAS.axpy!(unit - ucpr_lft_is, zshk, zm_mnt_mig)
 		BLAS.axpy!(ucpr_lft_is, view(zshk, :, s), view(mntvec, mnt_range[12]))
 		BLAS.axpy!(unit - ucpr_lft_is, view(zshk, :, s), view(mntvec, mnt_range[11]))
 
-		# --- 5-2 interaction between z and lnw: E(z'lnw|k) ---
-		# broadcast!(*, nalt_tmp, lnw, lftpr_is, locpr_is)
-		# BLAS.axpy!(sum(nalt_tmp), zshk, zlnw_mnt
-
-		# unconditional covariance: E(z'lnw)
-		# BLAS.axpy!(dot(lnw, locpr_is), zshk, zlnw_mnt)
+		# --- 5-2 interaction between z and lnw: E(z'lnw) ---
 		BLAS.axpy!(dot(lnw, locpr_is), view(zshk, :, s), view(mntvec, mnt_range[13]))
 
-		# --- 5-3 interaction between z and xqj_mig: E(z'xqj|k) ---
-		# broadcast!(*, nalt_tmp, lnqx, lftpr_is, locpr_is)
-		# BLAS.axpy!(sum(nalt_tmp), zshk, zlnqx_mnt)
+		## NOTE important intermediate var
 		broadcast!((x, y) -> x - x * y, nalt_tmp, lftpr_is, locpr_is)
-		wsum!(xqj_mig_ntmp, xqj_mig, nalt_tmp, 2)
+
+		lnw_qrnd_mig += dot(lnw, nalt_tmp) * lnqrnd # <-- E(lnw*uq|k=0)
+
+		# --- 5-3 interaction between z and xqj_mig: E(z'xqj|k) ---
+		mul!(xqj_mig_ntmp, xqj_mig, nalt_tmp)
 		# mul!(zshk_xqj, view(zshk, :, s), xqj_mig_ntmp')
 		# BLAS.axpy!(unit, vec(zshk_xqj), view(mntvec, mnt_range[14]))
 		outer_vec!(view(mntvec, mnt_range[14]), view(zshk, :, s), xqj_mig_ntmp)
-		# BLAS.axpy!(dot(xqj_mig, nalt_tmp), view(zshk, :, s), view(mntvec, mnt_range[14]))
 
+		BLAS.axpy!(lnqrnd, xqj_mig_ntmp, view(mntvec, mnt_range[17])) # <-- E(xqj*uq|k=0)
+
+		## NOTE important intermediate var
 		broadcast!(*, nalt_tmp, lftpr_is, locpr_is)
-		wsum!(xqj_mig_ntmp, xqj_mig, nalt_tmp, 2)
-		outer_vec!(view(mntvec, mnt_range[15]), view(zshk, :, s), xqj_mig_ntmp)
+
+		lnw_qrnd_lft += dot(lnw, nalt_tmp) * lnqrnd # <-- E(lnw*uq|k=1)
+
+		mul!(xqj_mig_ntmp, xqj_mig, nalt_tmp)
 		# mul!(zshk_xqj, view(zshk, :, s), xqj_mig_ntmp')
 		# BLAS.axpy!(unit, vec(zshk_xqj), view(mntvec, mnt_range[15]))
-		# BLAS.axpy!(dot(xqj_mig, nalt_tmp), view(zshk, :, s), view(mntvec, mnt_range[15]))
+		outer_vec!(view(mntvec, mnt_range[15]), view(zshk, :, s), xqj_mig_ntmp)
+
+		BLAS.axpy!(lnqrnd, xqj_mig_ntmp, view(mntvec, mnt_range[19])) # <-- E(xqj*uq|k=1)
 
 		uc_lft_pr += ucpr_lft_is
         lftshare .+= lftpr_is
@@ -320,17 +317,24 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	# zm_mnt_lft ./= (nsim * pr_lft)
 	# zm_mnt_mig ./= (nsim * (unit - pr_lft))
 	broadcast!(/, view(mntvec, mnt_range[12]), view(mntvec, mnt_range[12]), nsim * pr_lft_h)
-	broadcast!(/, view(mntvec, mnt_range[11]), view(mntvec, mnt_range[11]), nsim * (unit - pr_lft_h))
+	broadcast!(/, view(mntvec, mnt_range[11]), view(mntvec, mnt_range[11]), nsim * pr_mig_h)
 	# zlnw_mnt ./= nsim
-	# zlnqx_mnt ./= nsim
+	# zlnxqj_mnt ./= nsim
 	broadcast!(/, view(mntvec, mnt_range[13]), view(mntvec, mnt_range[13]), nsim)
 	broadcast!(/, view(mntvec, mnt_range[15]), view(mntvec, mnt_range[15]), nsim * pr_lft_h)
-	broadcast!(/, view(mntvec, mnt_range[14]), view(mntvec, mnt_range[14]), nsim * (unit - pr_lft_h))
+	broadcast!(/, view(mntvec, mnt_range[14]), view(mntvec, mnt_range[14]), nsim * pr_mig_h)
+	# E(xqj*uq|k)
+	broadcast!(*, view(mntvec, mnt_range[17]), view(mntvec, mnt_range[17]), dage9 / (nsim * pr_mig_h))
+	broadcast!(*, view(mntvec, mnt_range[19]), view(mntvec, mnt_range[19]), dage9 / (nsim * pr_lft_h))
 
 	lftshare ./= nsim
 	mktshare ./= nsim
-	lnqrnd_lftj ./= nsim
-	lnqrnd_migj ./= nsim
+	lnqrnd_lft /= nsim * pr_lft_h
+	lnqrnd_mig /= nsim * pr_mig_h
+	lnqrnd2_lft /= nsim * pr_lft_h
+	lnqrnd2_mig /= nsim * pr_mig_h
+	lnw_qrnd_lft /= nsim * pr_lft_h
+	lnw_qrnd_mig /= nsim * pr_mig_h
 
 	copyto!(view(mntvec, mnt_range[1]), lftshare)
 	uc_lft_pr /= nsim
@@ -373,41 +377,45 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is, migpr
 	mul!(xf_xt_p, view(mntvec, mnt_range[3]), xt')
 	view(mntvec, mnt_range[10]) .= vec(view(xf_xt_p, 2:nxf, 2:nxt)) #<-- NOTE: drop constant
 
-	# --- E(xq'lnq | k = 0), E(lnw lnq | k = 0) ---
-	broadcast!((x, y, z, u) -> x + y / (u - z), lnq_mig, lnq_mig, lnqrnd_migj, pr_lft_alt_h, unit)
-	broadcast!(*, nalt_tmp, lnq_mig, mktshare, dage9)
-	# mul!(xq_lnq_mig, xq, nalt_tmp)
-	# mul!(view(mntvec, mnt_range[16]), xq, nalt_tmp)
-	BLAS.axpy!(sum(nalt_tmp), xq, view(mntvec, mnt_range[16]))
-	# xqj_lnq_mig = dot(xqj_mig, nalt_tmp)
-	mul!(view(mntvec, mnt_range[17]), xqj_mig, nalt_tmp)
+	# --- E(xq'lnq | k = 0) ---
+	lnq_mig_i = dot(lnq_mig, mktshare) + lnqrnd_mig
+	BLAS.axpy!(dage9*lnq_mig_i, xq, view(mntvec, mnt_range[16]))
+
+	# --- E(xqj'lnq | k = 0) ---
+	broadcast!(*, nalt_tmp, lnq_mig, mktshare)
+
+	mul!(xqj_mig_ntmp, xqj_mig, nalt_tmp)
+	BLAS.axpy!(dage9, xqj_mig_ntmp, view(mntvec, mnt_range[17]))
 	# view(mntvec, mnt_range[17]) .= dot(xqj_mig, nalt_tmp)
-	# lnwq_mig = dot(lnw, nalt_tmp)
-	view(mntvec, mnt_range[20]) .= dot(lnw, nalt_tmp)
+
+	# --- E(lnw lnq | k = 0) ---
+	view(mntvec, mnt_range[20]) .= dage9 * (dot(lnw, nalt_tmp) + lnw_qrnd_mig)
 
 	# --- E(lnq^2 | k = 0) ---
 	# lnq2_mig = dot(lnq_mig, nalt_tmp)
-	view(mntvec, mnt_range[22]) .= dot(lnq_mig, nalt_tmp)
+	view(mntvec, mnt_range[22]) .= dage9 * (dot(lnq_mig, nalt_tmp) + lnqrnd2_mig)
 
-	# --- E(xq'lnq | k = 1), E(lnw lnq | k = 1) ---
-	broadcast!((x, y, z) -> x + y / z, lnq_lft, lnq_lft, lnqrnd_lftj, pr_lft_alt_h)
-	broadcast!(*, nalt_tmp, lnq_lft, mktshare, dage9)
-	# mul!(xq_lnq_lft, xq, nalt_tmp)
-	# mul!(view(mntvec, mnt_range[18]), xq, nalt_tmp)
-	BLAS.axpy!(sum(nalt_tmp), xq, view(mntvec, mnt_range[18]))
-	# xqj_lnq_lft = dot(xqj_lft, nalt_tmp)
-	mul!(view(mntvec, mnt_range[19]), xqj_mig, nalt_tmp)
+	# --- E(xq'lnq | k = 1) ---
+	lnq_lft_i = dot(lnq_lft, mktshare) + lnqrnd_lft
+	BLAS.axpy!(dage9 * lnq_lft_i, xq, view(mntvec, mnt_range[18]))
+
+	# --- E(xqj'lnq | k = 1) ---
+	broadcast!(*, nalt_tmp, lnq_lft, mktshare)
+
+	mul!(xqj_mig_ntmp, xqj_mig, nalt_tmp)
+	BLAS.axpy!(dage9, xqj_mig_ntmp, view(mntvec, mnt_range[19]))
 	# view(mntvec, mnt_range[19]) .= dot(xqj_lft, nalt_tmp)
-	# lnwq_lft = dot(lnw, nalt_tmp)
-	view(mntvec, mnt_range[21]) .= dot(lnw, nalt_tmp)
+
+	# --- E(lnw lnq | k = 1) ---
+	view(mntvec, mnt_range[21]) .= dage9 * (dot(lnw, nalt_tmp) + lnw_qrnd_lft)
 
 	# --- E(lnq^2 | k = 1) ---
 	# lnq2_lft = dot(lnq_lft, nalt_tmp)
-	view(mntvec, mnt_range[23]) .= dot(lnq_lft, nalt_tmp)
+	view(mntvec, mnt_range[23]) .= dage9 * (dot(lnq_lft, nalt_tmp) + lnqrnd2_lft)
 
 	# vcat(lftshare(154), xm_mnt(15), xf_mnt(7), xf_mnt_lft(7), mlnw(1), mlnw_lft(1), xl_mnt(4), xt_mnt(5),
 	# 	   xt_lnw_mnt(5), xf_xt_p(35), zm_mnt_mig(2), zm_mnt_lft(2), zlnw_mnt(2), zxqj_mig_mnt(4),
-	# 	   zxqj_lft_mnt(4), xq_lnq_mig(6), xqj_lnq_mig(6), xq_lnq_lft(2), xqj_lnq_lft(2),
+	# 	   zxqj_lft_mnt(4), xq_lnq_mig(6), xqj_lnq_mig(2), xq_lnq_lft(6), xqj_lnq_lft(2),
 	#	   lnwq_mig(1), lnwq_lft(1), lnq2_mig(1), lnq2_lft(1))
 end
 
