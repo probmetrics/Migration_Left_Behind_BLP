@@ -83,6 +83,9 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
     end
 end
 
+# update_delta!(delta_new, delta_old, lnDataShare, initval, lnW, lnP, XQJ_mig,
+# 			  XT, XL, XM, XF, XQ, ZSHK, USHK, wgt, sgwgt, nind, nalt, nsim,
+# 			  dgvec; alpha = 0.12, xdim = 1)
 function update_delta!(delta_new::AbstractMatrix{T}, delta_old::AbstractMatrix{T},
 					   lnDataShare::AbstractMatrix{T}, parm::AbstractVector{T},
 					   lnW::AbstractVector{T}, lnP::AbstractVector{T},
@@ -105,6 +108,8 @@ function update_delta!(delta_new::AbstractMatrix{T}, delta_old::AbstractMatrix{T
 	delta_new[1, :] .= zero(eltype(delta_new))
 end
 
+# locpr_thread!(delta_new, initval, delta_old, lnW, lnP, XQJ_mig, XT, XL, XM,
+# 			  XF, XQ, ZSHK, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec)
 function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVector{T},
 					   lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
 					   XT::AbstractMatrix{T},
@@ -170,6 +175,8 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	broadcast!(/, mktshare, mktshare, sgwgt')
 end
 
+# locpr_serial!(delta_new, initval, delta_old, lnW, lnP, XQJ_mig, XT, XL, XM,
+# 			  XF, XQ, ZSHK, USHK, wgt, sgwgt, nind, nalt, nsim, dgvec)
 function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVector{T},
 						lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
 						XT::AbstractMatrix{T},
@@ -213,7 +220,7 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	@fastmath @inbounds @simd for i = 1:nind
 		ind_sel = (1 + nalt * (i - 1)):(i * nalt)
 		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
-		g = view(dgvec, i)
+		g = dgvec[i]
 
 		loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, alpha,
 					  view(Delta, :, g), xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr,

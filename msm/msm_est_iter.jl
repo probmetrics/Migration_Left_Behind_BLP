@@ -1,16 +1,16 @@
 
 using Optim, ForwardDiff, LineSearches
 function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
-				 		lnDataShare::AbstractVector{T}, alpha::T, lnW::AbstractVector{T},
+				 		lnDataShare::AbstractMatrix{T}, alpha::T, lnW::AbstractVector{T},
 						lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
 						XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 				 		XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 						XQ::AbstractMatrix{T}, ZSHK::AbstractMatrix{T},
 						USHK::AbstractVector{T}, QSHK::AbstractVector{T},
-						pr_lft::AbstractVector{T}, pr_lft_alt::AbstractMatrix{T},
-				 		Delta_init::AbstractMatrix{T}, dgvec::AbstractVector{Int},
-				 		htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
-				 		wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+						pr_lft::AbstractVector{T}, Delta_init::AbstractMatrix{T},
+				 		dgvec::AbstractVector{Int}, htvec::AbstractVector{Int},
+				 		dage9vec::AbstractVector{T}, wgt::AbstractVector{T},
+				 		sgwgt::AbstractVector{T}, shtwgt::AbstractVector{T},
 				 		swgt9::T, nind::Int, nalt::Int,	nsim::Int; xdim::Int = 1,
 						btolerance::T = 1.0e-6, biter::Int = 500,
 						ftolerance::T = 1.0e-14, fpiter::Int = 2000,
@@ -32,7 +32,7 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 	## --- define GMM optim function ---
 	coefx_old = copy(initpar)
 	msm_opt = parm -> msm_obj(parm, data_mnts, dwt, alpha, lnW, lnP, XQJ_mig,
-						 	  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft, pr_lft_alt,
+						 	  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft,
 					 	  	  delta_old, dgvec, htvec, dage9vec, wgt, sgwgt,
 					 	  	  swgt9, nind, nalt, nsim; xdim = xdim)
 	msmv_old = msm_opt(coefx_old)
@@ -44,7 +44,7 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 	k = 1
 	iter_conv = one(promote_type(eltype(initpar), eltype(data_mnts)))
     coefx_new = copy(initpar)
-    while coefconv > btolerance
+    while iter_conv > btolerance
         if k > biter
             printstyled("\nMaximum Iters Reached, NOT Converged!!!\n", color = :light_red)
             break
@@ -53,7 +53,7 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
         # --- BLP contraction mapping to update delta ---
         fpt_squarem!(delta_fpt, delta_new, delta_old, delta_q1, delta_q2, lnDataShare,
 					 coefx_old, lnW, lnP, XQJ_mig, XT, XL, XM, XF, XQ, ZSHK,
-					 USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; alpha = alpha,
+					 USHK, wgt, shtwgt, nind, nalt, nsim, dgvec; alpha = alpha,
 					 xdim = xdim, ftolerance = ftolerance, fpiter = fpiter,
 					 mstep = mstep, stepmin_init = stepmin,
 					 stepmax_init = stepmax, alphaversion = alphaversion)
@@ -73,7 +73,7 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
         println("The $k", "th iteration, relative coefx difference = ", "$coefconv\n")
 		copyto!(coefx_old, coefx_new)
 
-		msmconv = abs(msmv_new - msmv_old)
+		msmconv = abs(msmv_new - msmv_old) / sqrt(abs(1.0 + msmv_old))
 		println("The $k", "th iteration, msm objective difference = ", "$msmconv\n")
 		msmv_old = msmv_new
 

@@ -22,8 +22,11 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMnames::Abstrac
     wgt = Vector{Float64}(df[df[:, :chosen] .== 1, :w_l])
     dage9vec = Vector{Float64}(df[df[:, :chosen] .== 1, :cage9])
 
-    sgwgt = countmap(htvec, weights(wgt))
+    sgwgt = countmap(dgvec, weights(wgt))
     sgwgt = [sgwgt[i] for i = 1:length(sgwgt)]
+
+	shtwgt = countmap(htvec, weights(wgt))
+	shtwgt = [shtwgt[i] for i = 1:length(shtwgt)]
 
     swgt9 = countmap(htvec, weights(wgt .* dage9vec))[2]
 
@@ -83,6 +86,7 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMnames::Abstrac
         XQJ_mig = copy(XQJ_mig')
     end
 
-    return(lnDataShare, Delta_init, lnW, lnP, XQJ_mig, wgt, sgwgt, swgt9, XT, XM,
-            XL, XF, XQ, pr_lft, pr_lft_alt, nalt, nind, dgvec, htvec, dage9vec)
+    return(lnDataShare, Delta_init, lnW, lnP, XQJ_mig, wgt, sgwgt, shtwgt, swgt9,
+			XT, XM, XL, XF, XQ, pr_lft, pr_lft_alt, nalt, nind, dgvec, htvec,
+            dage9vec)
 end

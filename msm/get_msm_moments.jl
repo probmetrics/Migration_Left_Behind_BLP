@@ -7,13 +7,13 @@ function msm_obj(parm, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 QSHK::AbstractVector{T}, pr_lft::AbstractVector{T},
 				 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
 				 htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
-				 wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+				 wgt::AbstractVector{T}, shtwgt::AbstractVector{T},
 				 swgt9::T, nind::Int, nalt::Int,
 				 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
 	mnt_par = get_moments_thread(parm, alpha, lnW, lnP, XQJ_mig, XT, XL, XM, XF, XQ,
 								 ZSHK, USHK, QSHK, pr_lft, Delta, dgvec, htvec,
-								 dage9vec, wgt, sgwgt, swgt9, nind,
+								 dage9vec, wgt, shtwgt, swgt9, nind,
 								 nalt, nsim; xdim = xdim)
 
 	gmnt = mnt_par - data_mnts
@@ -31,7 +31,7 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 					 pr_lft::AbstractVector{T},
 					 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
 					 htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
-					 wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+					 wgt::AbstractVector{T}, shtwgt::AbstractVector{T},
 					 swgt9::T, nind::Int, nalt::Int,
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
@@ -95,11 +95,11 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 
 	sum!(mntmat, mntmat_all)
 	under9 = setdiff(1:mnt_len, mnt_cage9)
-	broadcast!(/, view(mntmat, under9, :), view(mntmat, under9, :), sgwgt')
+	broadcast!(/, view(mntmat, under9, :), view(mntmat, under9, :), shtwgt')
 
 	# NOTE: remove constants in XF, XF_lft, XL_lft, and XT_lft
 	mnt_par = vec(mean(view(mntmat, setdiff(1:mnt_len, [mnt_drop; mnt_cage9]), :),
-					  weights(sgwgt), dims = 2))
+					  weights(shtwgt), dims = 2))
 	mnt_par_cage9 = view(mntmat, mnt_cage9, 2) / swgt9
 
 	append!(mnt_par, mnt_par_cage9)
@@ -117,7 +117,7 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 					 pr_lft::AbstractVector{T},
 					 Delta::AbstractMatrix{T}, dgvec::AbstractVector{Int},
 					 htvec::AbstractVector{Int}, dage9vec::AbstractVector{T},
-					 wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
+					 wgt::AbstractVector{T}, shtwgt::AbstractVector{T},
 					 swgt9::T, nind::Int, nalt::Int,
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
@@ -171,11 +171,11 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 	end
 
 	under9 = setdiff(1:mnt_len, mnt_cage9)
-	broadcast!(/, view(mntmat, under9, :), view(mntmat, under9, :), sgwgt')
+	broadcast!(/, view(mntmat, under9, :), view(mntmat, under9, :), shtwgt')
 
 	# NOTE: remove constants in XF, XF_lft, XL_lft, and XT_lft
 	mnt_par = vec(mean(view(mntmat, setdiff(1:mnt_len, [mnt_drop; mnt_cage9]), :),
-					  weights(sgwgt), dims = 2))
+					  weights(shtwgt), dims = 2))
 	mnt_par_cage9 = view(mntmat, mnt_cage9, 2) / swgt9
 
 	append!(mnt_par, mnt_par_cage9)
@@ -254,7 +254,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
 		zrnd = zbr[s]
         urnd = ushk[s]
         qrnd = qshk[s]
-		theta = logistic(xbt + zrnd + sigu * urnd)
+		theta = logistic(xbt + zrnd - sigu * urnd)
 		lnqrnd = rhoq * sigq * urnd / sigu + sigq * sqrt(unit - rhoq^2) * qrnd
 
         for j = 1:nalt
@@ -457,6 +457,37 @@ function unpack_parm_msm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 
 	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq,
 	 		 mnt_idx, mnt_drop, mnt_cage9)
+end
+
+function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
+					 XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
+					 XQ::AbstractMatrix{T}, XQJ_mig::AbstractMatrix{T},
+					 ZSHK::AbstractMatrix{T}, xdim::Int) where T <: AbstractFloat
+	 nxt = size(XT, xdim)
+	 nxl = size(XL, xdim)
+	 nxm = size(XM, xdim)
+	 nxf = size(XF, xdim)
+	 nxq = size(XQ, xdim)
+	 nxqj = size(XQJ_mig, xdim)
+	 nzr = size(ZSHK, xdim)
+
+	 bt = parm[1:nxt]
+	 bl = parm[(nxt + 1):(nxt + nxl)]
+	 bm = parm[(nxt + nxl + 1):(nxt + nxl + nxm)]
+	 bf = parm[(nxt + nxl + nxm + 1):(nxt + nxl + nxm + nxf)]
+
+	 blft = parm[nxt + nxl + nxm + nxf + 1]
+	 bw = parm[nxt + nxl + nxm + nxf + 2]
+	 bitr = parm[nxt + nxl + nxm + nxf + 3]
+
+	 bq = parm[(nxt + nxl + nxm + nxf + 4):(nxt + nxl + nxm + nxf + nxq + 3)]
+	 bqj_mig = parm[(nxt + nxl + nxm + nxf + nxq + 4):(nxt + nxl + nxm + nxf + nxq + 3 + nxqj)]
+	 bqj_dif = parm[(nxt + nxl + nxm + nxf + nxq + 4 + nxqj):(nxt + nxl + nxm + nxf + nxq + 3 + 2*nxqj)]
+
+	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 2*nxqj + 4):(nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 3)] #<- observed household char.
+	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 4])
+
+	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu)
 end
 
 function get_mnt_range(mnt_idx::AbstractVector{T}) where T <: Int
