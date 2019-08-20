@@ -102,13 +102,14 @@ function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symb
     # --- (2) data moments for XM ---
     XM_mnt = colwise(x -> mean(x, weights(wgtvec)), view(df, XMnames))
 
-    # --- (3) data moments for XF and XF_lft ---
-	XF_mnt = colwise(x -> mean(x, weights(wgtvec)), view(df, XFnames))
+    # --- (3) data moments for XF_mig and XF_lft ---
+	XF_mig_mnt = colwise(x -> mean(x, weights(view(wgtvec, leftbh .== 0))),
+						view(df, df[:child_leftbh] .== 0, XFnames))
 	XF_lft_mnt = colwise(x -> mean(x, weights(view(wgtvec, leftbh .== 1))),
 						view(df, df[:child_leftbh] .== 1, XFnames))
 
     # --- (4) data moments for lnW and lnW_lft ---
-	lnW_mnt = mean(lnW, weights(wgtvec))
+	lnW_mig_mnt = mean(view(lnW, leftbh .== 0), weights(view(wgtvec, leftbh .== 0)))
 	lnW_lft_mnt = mean(view(lnW, leftbh .== 1), weights(view(wgtvec, leftbh .== 1)))
 
     # --- (5) data moments for XL_lft ---
@@ -119,15 +120,16 @@ function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symb
 	XT_lft_mnt = colwise(x -> mean(x, weights(view(wgtvec, leftbh .== 1))),
 						 view(df, df[:child_leftbh] .== 1, XTnames))
 
-	# --- (7) data moments for XT'lnW and XF XT' ---
+	# --- (7) data moments for XT'lnW and E(XF XT' | k =0) ---
 	XT_lnW_mnt = colwise(x -> mean(x .* lnW, weights(wgtvec)), view(df, XTnames))
 
-	XF_XT_mnt = Matrix{Float64}(view(df, XFnames))' * (Matrix{Float64}(view(df, XTnames)) .*
-				wgtvec) / sum(wgtvec)
-	XF_XT_mnt = vec(XF_XT_mnt)
+	wgtvec_mig = view(wgtvec, leftbh .== 0)
+	XF_XT_mig_mnt = Matrix{Float64}(view(df, leftbh .== 0, XFnames))' *
+					(Matrix{Float64}(view(df, leftbh .== 0, XTnames)) .* wgtvec_mig) / sum(wgtvec_mig)
+	XF_XT_mig_mnt = vec(XF_XT_mnt)
 
-	leftbh_mnt = vcat(pr_lft_alt, XM_mnt, XF_mnt, XF_lft_mnt, lnW_mnt, lnW_lft_mnt,
-					  XL_lft_mnt, XT_lft_mnt, XT_lnW_mnt, XF_XT_mnt)
+	leftbh_mnt = vcat(pr_lft_alt, XM_mnt, XF_mig_mnt, XF_lft_mnt, lnW_mig_mnt, lnW_lft_mnt,
+					  XL_lft_mnt, XT_lft_mnt, XT_lnW_mnt, XF_XT_mig_mnt)
  	return leftbh_mnt
 end
 
@@ -187,6 +189,7 @@ function dtmnts_nobs_leftbh(df::AbstractDataFrame, lnWname::Symbol,
 	nXM = length(XMnames)
 	swt = sum(df[:w_l])
 	swt_lft = sum(view(df, df[:, :child_leftbh] .== 1, :w_l))
+	swt_mig = sum(view(df, df[:, :child_leftbh] .== 0, :w_l))
 
     # --- (1) type-specific left-behind probabilities in each city ---
     pr_lft_alt_n = by(df, [:htreat, :city_alts], x -> sum(x[:w_l]), sort = true)
@@ -196,11 +199,11 @@ function dtmnts_nobs_leftbh(df::AbstractDataFrame, lnWname::Symbol,
     XM_mnt_n = swt * ones(nXM)
 
     # --- (3) data moments for XF and XF_lft ---
-	XF_mnt_n = swt * ones(nXF)
+	XF_mig_mnt_n = swt_mig * ones(nXF)
 	XF_lft_mnt_n = swt_lft * ones(nXF)
 
     # --- (4) data moments for lnW and lnW_lft ---
-	lnW_mnt_n = swt
+	lnW_mig_mnt_n = swt_mig
 	lnW_lft_mnt_n = swt_lft
 
     # --- (5) data moments for XL_lft ---
@@ -211,11 +214,11 @@ function dtmnts_nobs_leftbh(df::AbstractDataFrame, lnWname::Symbol,
 
 	# --- (7) data moments for XT'lnW and XF XT' ---
 	XT_lnW_mnt_n = swt * ones(nXT)
-	XF_XT_mnt_n = swt * ones(nXF * nXT)
+	XF_XT_mig_mnt_n = swt_mig * ones(nXF * nXT)
 
-	leftbh_mnt_n = vcat(pr_lft_alt_n, XM_mnt_n, XF_mnt_n, XF_lft_mnt_n, lnW_mnt_n,
+	leftbh_mnt_n = vcat(pr_lft_alt_n, XM_mnt_n, XF_mig_mnt_n, XF_lft_mnt_n, lnW_mig_mnt_n,
 					  	lnW_lft_mnt_n, XL_lft_mnt_n, XT_lft_mnt_n, XT_lnW_mnt_n,
-					  	XF_XT_mnt_n)
+					  	XF_XT_mig_mnt_n)
  	return leftbh_mnt_n
 end
 
