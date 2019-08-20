@@ -36,7 +36,7 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
 	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu,
-	rhoq, sigq, mnt_idx, mnt_drop, mnt_cage9 =
+	sigq, mnt_idx, mnt_drop, mnt_cage9 =
 			unpack_parm_msm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, nalt, xdim)
 
 	# --- common variables ---
@@ -82,7 +82,7 @@ function get_moments_thread(parm, alpha::T, lnW::AbstractVector{T},
 			individual_mnts!(mntvec_thread, mnt_range, mktshare, lftshare, lftpr_is,
 							 locpr_is, nalt_tmp, xf_xt_p, xbm, ln1mlam, # <-- containers
 							 xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp,  #<-- containers again
-							 bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq, #<-- endogeneous params
+							 bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, sigq, #<-- endogeneous params
 							 alpha, view(Delta, :, g), pr_lft[ht],
 							 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
 							 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
@@ -122,7 +122,7 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 					 nsim::Int; xdim::Int = 1) where T <: AbstractFloat
 
 	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu,
-	rhoq, sigq, mnt_idx, mnt_drop, mnt_cage9 =
+	sigq, mnt_idx, mnt_drop, mnt_cage9 =
 			unpack_parm_msm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, nalt, xdim)
 
 	TT = promote_type(eltype(parm), eltype(lnW))
@@ -160,7 +160,7 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 		individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
 						 locpr_is, nalt_tmp, xf_xt_p, xbm, ln1mlam, xbqj_mig, # <-- containers
 						 xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp, #<-- containers again
-						 bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq, #<-- endogeneous params
+						 bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, sigq, #<-- endogeneous params
 		  				 alpha, view(Delta, :, g), pr_lft[ht],
 						 view(lnW, ind_sel), view(lnP, ind_sel), view(XT, :, i),
 						 view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
@@ -197,7 +197,7 @@ using LinearAlgebra:dot
 function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
 						  locpr_is, nalt_tmp, xf_xt_p, xbm, ln1mlam, xbqj_mig,  # <-- containers
 						  xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, xqj_mig_ntmp, #<-- containers again
-						  bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq, #<-- endogeneous params
+						  bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, sigq, #<-- endogeneous params
   						  alpha, delta,	pr_lft_h, lnw, lnp, xt, xl, xm, xf,  #<-- exogeneous params and data
 						  xqj_mig, xq, dage9, zshk, ushk, qshk, nalt, nsim, unit)
 	##
@@ -255,7 +255,8 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
         urnd = ushk[s]
         qrnd = qshk[s]
 		theta = logistic(xbt + zrnd - sigu * urnd)
-		lnqrnd = rhoq * sigq * urnd / sigu + sigq * sqrt(unit - rhoq^2) * qrnd
+		# lnqrnd = rhoq * sigq * urnd / sigu + sigq * sqrt(unit - rhoq^2) * qrnd
+		lnqrnd = sigq * qrnd
 
         for j = 1:nalt
             # --- 1. leftbh prob ---
@@ -446,8 +447,8 @@ function unpack_parm_msm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 
 	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 2*nxqj + 4):(nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 3)] #<- observed household char.
 	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 4])
-	 rhoq = tanh(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 5])
-	 sigq = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 6])
+	 # rhoq = tanh(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 5])
+	 sigq = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 5])
 
 	 mnt_idx = [nalt, nxm, nxf, nxf, 1, 1, nxl, nxt, nxt - 1, (nxf - 1) * (nxt - 1),
 	 			nzr, nzr, nzr, nzr*nxqj, nzr*nxqj, nxq, nxqj, nxq, nxqj, 1, 1, 1, 1]
@@ -455,7 +456,7 @@ function unpack_parm_msm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 	 			 nalt + nxm + 2*nxf + 3 + nxl]
 	 mnt_cage9 = collect((sum(mnt_idx) - 2*nxq - 2*nxqj - 3):sum(mnt_idx))
 
-	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq,
+	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, sigq,
 	 		 mnt_idx, mnt_drop, mnt_cage9)
 end
 
