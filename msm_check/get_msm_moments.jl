@@ -418,7 +418,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
 
 	#
 	# vcat(lftshare(154), xm_mnt(15), xf_mnt_mig(6), xf_mnt_lft(6), mlnw_mig(1), mlnw_lft(1),
-	# 	   xl_mnt(4), xt_mnt(5), xt_lnw_mnt(5), zm_mnt_mig(2), zm_mnt_lft(2),
+	# 	   xl_lft_mnt(4), xt_lft_mnt(5), xt_lnw_mnt(5), zm_mnt_mig(2), zm_mnt_lft(2),
 	# 	   zlnw_mnt(2), zxqj_mig_mnt(4), zxqj_lft_mnt(4), xq_lnq_mig(6), xqj_lnq_mig(2),
 	# 	   xq_lnq_lft(6), xqj_lnq_lft(2), lnwq_mig(1), lnwq_lft(1), lnq2_mig(1), lnq2_lft(1))
 	#

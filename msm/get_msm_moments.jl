@@ -177,7 +177,7 @@ function get_moments(parm, alpha::T, lnW::AbstractVector{T},
 	under9 = setdiff(1:mnt_len, mnt_cage9)
 	broadcast!(/, view(mntmat, under9, :), view(mntmat, under9, :), shtwgt')
 
-	# NOTE: remove constants in XF, XF_lft, XL_lft, and XT_lft
+	# NOTE: remove constants in XF_mig, XF_lft, XL_lft, and XT_lft
 	mnt_par = vec(mean(view(mntmat, setdiff(1:mnt_len, [mnt_drop; mnt_cage9]), :),
 					  weights(shtwgt), dims = 2))
 	mnt_par_cage9 = view(mntmat, mnt_cage9, 2) / swgt9
@@ -260,7 +260,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
 		zrnd = zbr[s]
         urnd = ushk[s]
         qrnd = qshk[s]
-		theta = logistic(xbt + zrnd - sigu * urnd)
+		theta = logistic(xbt + zrnd + sigu * urnd)
 		# lnqrnd = rhoq * sigq * urnd / sigu + sigq * sqrt(unit - rhoq^2) * qrnd
 		lnqrnd = sigq * qrnd
 
@@ -291,7 +291,7 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
 		BLAS.axpy!(dot(lnw, locpr_is), view(zshk, :, s), view(mntvec, mnt_range[13]))
 
 		## NOTE important intermediate var
-		broadcast!((x, y) -> x - x * y, nalt_tmp, lftpr_is, locpr_is)
+		broadcast!((x, y) -> x - x * y, nalt_tmp, locpr_is, lftpr_is)
 
 		lnw_qrnd_mig += dot(lnw, nalt_tmp) * lnqrnd # <-- E(lnw*uq|k=0)
 
@@ -377,10 +377,10 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
 	# xt_mnt .= (uc_lft_pr / pr_lft) * xt
 	BLAS.axpy!((uc_lft_pr / pr_lft_h), xt, view(mntvec, mnt_range[8]))
 
-	# ---  moments for XT: E(xt'lnw) and E(xf xt' | k = 0) ---
+	# ---  moments for XT: E(xt'lnw) and E(xf xt' | k = 1) ---
 	# xt_lnw_mnt .= lnw_locpr * xt
 	BLAS.axpy!(dot(lnw, mktshare), view(xt, 2:nxt), view(mntvec, mnt_range[9])) #<-- NOTE: drop constant in xt
-	mul!(xf_xt_p, view(mntvec, mnt_range[3]), xt')
+	mul!(xf_xt_p, view(mntvec, mnt_range[4]), xt')
 	view(mntvec, mnt_range[10]) .= vec(view(xf_xt_p, 2:nxf, 2:nxt)) #<-- NOTE: drop constant
 
 	# --- E(xq'lnq | k = 0) ---
@@ -421,9 +421,12 @@ function individual_mnts!(mntvec, mnt_range, mktshare, lftshare, lftpr_is,
 
 	#
 	# vcat(lftshare(154), xm_mnt(15), xf_mnt_mig(7), xf_mnt_lft(7), mlnw_mig(1), mlnw_lft(1),
-	# 	   xl_mnt(4), xt_mnt(5), xt_lnw_mnt(5), xf_xt_mig(35), zm_mnt_mig(2), zm_mnt_lft(2),
+	# 	   xl_mnt_lft(4), xt_mnt_lft(5), xt_lnw_mnt(5), xf_xt_lft(35), zm_mnt_mig(2), zm_mnt_lft(2),
 	# 	   zlnw_mnt(2), zxqj_mig_mnt(4), zxqj_lft_mnt(4), xq_lnq_mig(6), xqj_lnq_mig(2),
 	# 	   xq_lnq_lft(6), xqj_lnq_lft(2), lnwq_mig(1), lnwq_lft(1), lnq2_mig(1), lnq2_lft(1))
+	#
+	# TODO: (1) change xf_xt_lft(35) back into xf_xt(35)
+	# 		(2) add xt_xqj_mig(10), xt_xqj_lft(10)
 	#
 end
 

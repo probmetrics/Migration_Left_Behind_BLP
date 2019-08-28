@@ -123,13 +123,13 @@ function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symb
 	# --- (7) data moments for XT'lnW and E(XF XT' | k =0) ---
 	XT_lnW_mnt = colwise(x -> mean(x .* lnW, weights(wgtvec)), view(df, XTnames))
 
-	wgtvec_mig = view(wgtvec, leftbh .== 0)
-	XF_XT_mig_mnt = Matrix{Float64}(view(df, leftbh .== 0, XFnames))' *
-					(Matrix{Float64}(view(df, leftbh .== 0, XTnames)) .* wgtvec_mig) / sum(wgtvec_mig)
-	XF_XT_mig_mnt = vec(XF_XT_mnt)
+	wgtvec_lft = view(wgtvec, leftbh .== 1)
+	XF_XT_lft_mnt = Matrix{Float64}(view(df, leftbh .== 1, XFnames))' *
+					(Matrix{Float64}(view(df, leftbh .== 1, XTnames)) .* wgtvec_lft) / sum(wgtvec_lft)
+	XF_XT_lft_mnt = vec(XF_XT_lft_mnt)
 
 	leftbh_mnt = vcat(pr_lft_alt, XM_mnt, XF_mig_mnt, XF_lft_mnt, lnW_mig_mnt, lnW_lft_mnt,
-					  XL_lft_mnt, XT_lft_mnt, XT_lnW_mnt, XF_XT_mig_mnt)
+					  XL_lft_mnt, XT_lft_mnt, XT_lnW_mnt, XF_XT_lft_mnt)
  	return leftbh_mnt
 end
 
@@ -214,11 +214,11 @@ function dtmnts_nobs_leftbh(df::AbstractDataFrame, lnWname::Symbol,
 
 	# --- (7) data moments for XT'lnW and XF XT' ---
 	XT_lnW_mnt_n = swt * ones(nXT)
-	XF_XT_mig_mnt_n = swt_mig * ones(nXF * nXT)
+	XF_XT_lft_mnt_n = swt_lft * ones(nXF * nXT)
 
 	leftbh_mnt_n = vcat(pr_lft_alt_n, XM_mnt_n, XF_mig_mnt_n, XF_lft_mnt_n, lnW_mig_mnt_n,
 					  	lnW_lft_mnt_n, XL_lft_mnt_n, XT_lft_mnt_n, XT_lnW_mnt_n,
-					  	XF_XT_mig_mnt_n)
+					  	XF_XT_lft_mnt_n)
  	return leftbh_mnt_n
 end
 

@@ -33,7 +33,7 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 	coefx_old = copy(initpar)
 	msm_opt = parm -> msm_obj(parm, data_mnts, dwt, alpha, lnW, lnP, XQJ_mig,
 						 	  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft,
-					 	  	  delta_old, dgvec, htvec, dage9vec, wgt, sgwgt,
+					 	  	  delta_old, dgvec, htvec, dage9vec, wgt, shtwgt,
 					 	  	  swgt9, nind, nalt, nsim; xdim = xdim)
 	msmv_old = msm_opt(coefx_old)
 	println("\nInitial GMM object value at fixed deltas = ", msmv_old)
@@ -53,7 +53,7 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
         # --- BLP contraction mapping to update delta ---
         fpt_squarem!(delta_fpt, delta_new, delta_old, delta_q1, delta_q2, lnDataShare,
 					 coefx_old, lnW, lnP, XQJ_mig, XT, XL, XM, XF, XQ, ZSHK,
-					 USHK, wgt, shtwgt, nind, nalt, nsim, dgvec; alpha = alpha,
+					 USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; alpha = alpha,
 					 xdim = xdim, ftolerance = ftolerance, fpiter = fpiter,
 					 mstep = mstep, stepmin_init = stepmin,
 					 stepmax_init = stepmax, alphaversion = alphaversion)

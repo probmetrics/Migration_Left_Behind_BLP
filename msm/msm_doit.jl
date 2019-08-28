@@ -51,7 +51,7 @@ nalt, nind, dgvec, htvec, dage9vec =
 MigBootData = CSV.read("$DTDIR/mig_leftbh_indboot.csv")
 
 # --- bootstrap random shock ---
-nsim = 10
+nsim = 20
 ndraw = nind * nsim
 alpha = 0.12
 
@@ -78,7 +78,7 @@ USHK = USHK[:, 1]
 ##
 ## 3. Calculate Data Moments
 ##
-include("calc_data_moments.jl")
+include("$WKDIR/msm/calc_data_moments.jl")
 
 # --- the data moments ---
 leftbh_mnt = data_moments_leftbh(view(LeftbhData, LeftbhData[:chosen] .== 1, :),
@@ -120,7 +120,7 @@ lnq_init = coef(lnq_fit)
 ##
 
 nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
-		size(XQ, 1) + 2*size(XQJ_mig, 1) + size(ZSHK, 1) + 3
+		size(XQ, 1) + 2*size(XQJ_mig, 1) + size(ZSHK, 1) + 2
 
 # xt_init = [3.0; lft_init[2:size(XT, 1)]]
 # xf_init = lft_init[(size(XT, 1) + 1):(size(XT, 1) + size(XF, 1) - 1)]
@@ -136,7 +136,7 @@ bw = 0.19
 blft = -0.124
 bitr = -0.197
 initval = [initpar[1:33]; blft; bw; bitr; xq_init; xqj_mig_init; xqj_dif_init;
-			initpar[end-2:end-1]; -3.0; 0.0; -1.0]
+			initpar[end-2:end-1]; -3.0; -1.0]
 # initval = [xt_init; xl_init; xm_init; 0.0; xf_init; blft; bw; bitr;
 # 		   xq_init; zeros(length(xqj_dif_init)); xqj_dif_init; zeros(2);
 # 		   -2.5; 0.0; -1.0]
@@ -161,8 +161,8 @@ initval = [initpar[1:33]; blft; bw; bitr; xq_init; xqj_mig_init; xqj_dif_init;
 				  		initdel, dgvec, htvec, dage9vec, wgt, shtwgt, swgt9,
 				  		nind, nalt, nsim; xdim = 1)
 
-# dwt = ones(length(data_mnts_all))
-@time msm_obj(initval, data_mnts_all, dwt, alpha, lnW, lnP, XQJ_mig,
+dwt_iden = ones(length(data_mnts_all))
+@time msm_obj(initval, data_mnts_all, dwt_iden, alpha, lnW, lnP, XQJ_mig,
 			  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft,
 			  initdel, dgvec, htvec, dage9vec, wgt, shtwgt, swgt9,
 			  nind, nalt, nsim; xdim = 1)

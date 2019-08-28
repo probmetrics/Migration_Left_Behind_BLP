@@ -6,7 +6,7 @@ WKDIR = "E:/Dropbox/GitHub/Migration_Left_Behind_BLP"
 
 include("$WKDIR/utility_funs/obj_helper_funs.jl")
 include("$WKDIR/msm_check/data_prepare_msm.jl")
-include("$WKDIR/msm_check/get_msm_moments.jl")
+include("$WKDIR/msm_check/get_msm_moments_rev2.jl")
 # include("$WKDIR/msl/msl_llk_loop.jl")
 include("$WKDIR/utility_funs/squarem_helper_funs.jl")
 include("$WKDIR/utility_funs/blp_squarem.jl")
@@ -61,7 +61,7 @@ DF_master = LeftbhData[LeftbhData[:chosen] .== 1,
             :highsch_f, :highsch_m]]
 rename!(DF_master, :child_leftbh => :leftbh)
 zshk_vars = [:caring_study, :college_expect]
-match_vars = [:leftbh, :highsch_f, :highsch_m]
+match_vars = [:highsch_f, :highsch_m]
 
 Random.seed!(20190610);
 ZSHK = map(1:nrow(DF_master)) do i
@@ -78,11 +78,12 @@ USHK = USHK[:, 1]
 ##
 ## 3. Calculate Data Moments
 ##
-include("$WKDIR/msm_check/calc_data_moments.jl")
+include("$WKDIR/msm_check/calc_data_moments_rev2.jl")
 
 # --- the data moments ---
 leftbh_mnt = data_moments_leftbh(view(LeftbhData, LeftbhData[:chosen] .== 1, :),
-							 	 :lnhinc_alts, :cage9, XTnames, XLnames, XFnames, XMnames)
+							 	 :lnhinc_alts, :cage9, XTnames, XLnames, XFnames,
+								 XMnames, XQJMnames)
 zcog_mnt = data_moments_zcog(MigBootData, :clnhinc, :cog_adj, XQJMnames,
 						     zshk_vars, XQnames)
 data_mnts_all = vcat(leftbh_mnt, zcog_mnt)
@@ -90,7 +91,7 @@ data_mnts_all = vcat(leftbh_mnt, zcog_mnt)
 # --- bootstrap to calculate the variance of data moments ---
 var_leftbh_mnt = mnt_var_leftbh(view(LeftbhData, LeftbhData[:chosen] .== 1, :),
 							 	 :lnhinc_alts, :cage9, XTnames, XLnames, XFnames,
-								 XMnames, length(leftbh_mnt))
+								 XMnames, XQJMnames, length(leftbh_mnt))
 var_zcog_mnt = mnt_var_zcog(MigBootData, :clnhinc, :cog_adj, XQJMnames,
 						    zshk_vars, XQnames, length(zcog_mnt))
 dwt = 1.0 ./ vcat(var_leftbh_mnt, var_zcog_mnt)
@@ -162,7 +163,7 @@ initval = [initpar[1:31]; initpar[33]; blft; bw; bitr; xq_init; xqj_mig_init; xq
 				  		nind, nalt, nsim; xdim = 1)
 
 dwt_iden = ones(length(data_mnts_all))
-@time msm_obj(initval, data_mnts_all, dwt, alpha, lnW, lnP, XQJ_mig,
+@time msm_obj(initval, data_mnts_all, dwt_iden, alpha, lnW, lnP, XQJ_mig,
 			  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft,
 			  initdel, dgvec, htvec, dage9vec, wgt, shtwgt, swgt9,
 			  nind, nalt, nsim; xdim = 1)

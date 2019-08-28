@@ -65,7 +65,7 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
         println("The $k", "th iteration, relative coefx difference = ", "$coefconv\n")
 		copyto!(coefx_old, coefx_new)
 
-		llkconv = abs(llkv_new - llkv_old)
+		llkconv = abs(llkv_new - llkv_old) / sqrt(abs(1.0 + llkv_old))
 		println("The $k", "th iteration, log-likelihood difference = ", "$llkconv\n")
 		llkv_old = llkv_new
 
