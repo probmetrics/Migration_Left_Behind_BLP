@@ -127,8 +127,8 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu =
-				unpack_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq =
+				unpack_slii_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
 	ngrp = maximum(dgvec)
@@ -156,8 +156,8 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 			g = view(dgvec, i)
 
 			loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif,
-						  bz, sigu, alpha, view(Delta, :, g), xbm, ln1mlam, xbqj_mig,
-						  xbqj_dif, dlnq, lnq_mig, zbr, view(lnW, ind_sel),
+						  bz, sigu, rhoq, sigq, alpha, view(Delta, :, g), xbm, ln1mlam,
+						  xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr, view(lnW, ind_sel),
 						  view(lnP, ind_sel), view(XQJ_mig, :, ind_sel), view(XT, :, i),
 						  view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
 						  view(XQ, :, i), view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim)
@@ -191,8 +191,8 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu =
-		unpack_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq =
+		unpack_slii_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
 
@@ -212,21 +212,22 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 		sim_sel = (1 + nsim * (i - 1)):(i * nsim)
 		g = view(dgvec, i)
 
-		loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, alpha,
-					  view(Delta, :, g), xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr,
-					  view(lnW, ind_sel), view(lnP, ind_sel), view(XQJ_mig, :, ind_sel),
-					  view(XT, :, i), view(XL, :, i),
-					  view(XM, :, ind_sel), view(XF, :, ind_sel), view(XQ, :, i),
-					  view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim)
+		loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif,
+					  bz, sigu, rhoq, sigq, alpha, view(Delta, :, g), xbm, ln1mlam,
+					  xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr, view(lnW, ind_sel),
+					  view(lnP, ind_sel), view(XQJ_mig, :, ind_sel), view(XT, :, i),
+					  view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
+					  view(XQ, :, i), view(ZSHK, :, sim_sel), view(USHK, sim_sel), nalt, nsim)
 		BLAS.axpy!(wgt[i], loc_pri, view(mktshare, :, g))
 	end
 	broadcast!(/, mktshare, mktshare, sgwgt')
 end
 
 using StatsFuns:logistic, log1pexp, softmax!
-function loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu,
-						alpha, delta, xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, zbr, lnw,
-						lnp, xqj_mig, xt, xl, xm, xf, xq, zshk, ushk, nalt, nsim)
+function loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif,
+						bz, sigu, rhoq, sigq, alpha, delta, xbm, ln1mlam, xbqj_mig,
+						xbqj_dif, dlnq, lnq_mig, zbr, lnw, lnp, xqj_mig, xt, xl, xm,
+						xf, xq, zshk, ushk, nalt, nsim)
 	##
 	## delta: 		J x 1 Vector
 	## lnw, lnp: 	J x 1 Vector
@@ -262,9 +263,10 @@ function loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj
 		zrnd = zbr[s]
 		urnd = ushk[s]
 		theta = logistic(xbt + zrnd + sigu * urnd)
+		lnqfe = rhoq * sigq * urnd / sigu
 		for j = 1:nalt
 			# calculate location prob
-			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta)
+			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta, lnqfe)
 
 			# --- location specific utility ---
 			loc_pr_s[j] = Vloc(alpha, lnp[j], theta, xbm[j], gambar, delta[j])
