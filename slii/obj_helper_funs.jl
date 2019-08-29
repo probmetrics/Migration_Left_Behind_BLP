@@ -18,11 +18,11 @@ function qfun(lnw, ln1mlam, xbq, xbqj_mig, xbqj_dif, bw, blft, bitr)
 end
 
 using StatsFuns:logaddexp
-function gamfun(lnw, dlnq, lnq_mig, xbl, ln1mlam, theta)
+function gamfun(lnw, dlnq, lnq_mig, xbl, ln1mlam, theta, lnqfe)
 	unit = oneunit(theta)
     Vlft = (unit - theta) * dlnq - xbl
     Vmig = theta * ln1mlam
-    gambar = logaddexp(Vlft, Vmig) + theta * lnw + (unit - theta) * lnq_mig
+    gambar = logaddexp(Vlft, Vmig) + theta * lnw + (unit - theta) * (lnq_mig + lnqfe)
     return gambar
 end
 
