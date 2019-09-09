@@ -22,7 +22,7 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq =
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, sigq =
 		unpack_slii_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	# --- setup containers ---
@@ -45,7 +45,7 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 		dage9 = dage9vec[i]
 
 		llk += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif,
-							  bz, sigu, rhoq, sigq, lnqrsd, alpha, view(Delta, :, g),
+							  bz, sigu, sigq, lnqrsd, alpha, view(Delta, :, g),
 							  xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr,
 							  view(YL, ind_sel), view(YM, ind_sel), view(lnW, ind_sel),
 							  view(lnP, ind_sel), view(lnQbar, ind_sel), view(XQJ_mig, :, ind_sel),
@@ -58,9 +58,9 @@ function mig_leftbh_llk(parm, Delta::AbstractMatrix{T}, YL::AbstractVector{T},
 end
 
 
-using StatsFuns:logistic, log1pexp, normlogpdf
+using StatsFuns:logistic, log1pexp, normpdf
 function individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu,
-						rhoq, sigq, lnqrsd, alpha, delta, xbm, ln1mlam, xbqj_mig, xbqj_dif,
+						sigq, lnqrsd, alpha, delta, xbm, ln1mlam, xbqj_mig, xbqj_dif,
 						dlnq, lnq_mig, lnq_lft, zbr, yl, ym, lnw, lnp, lnqbar, xqj_mig, xt,
 						xl, xm, xf, xq, dage9, zshk, ushk, qshk, nalt, nsim)
 	##
@@ -95,40 +95,39 @@ function individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz
 
 	# --- begin the loop ---
 	@fastmath @inbounds @simd for s = 1:nsim
-		lnqllk_js = zero(TT)
+		qllk_js = zero(TT)
 		lftpr_s = zero(TT)
-		llks = zero(TT)
+		eVjs = zero(TT)
 		eVsums = zero(TT)
 
 		zrnd = zbr[s]
 		urnd = ushk[s]
 		qrnd = qshk[s]
-		theta = logistic(xbt + zrnd + sigu * urnd)
-		lnqfe = rhoq * sigq * urnd / sigu
-		lnqrnd = lnqfe + sigq * sqrt(unit - rhoq^2) * qrnd
+		theta = logistic(xbt + zrnd - sigu * urnd)
+		lnqrnd = lnqrsd * qrnd
 
 		for j = 1:nalt
 			# --- likelihood of lnq ---
 			lnq_js = (lnq_lft[j] + lnqrnd) * ym[j] + (lnq_mig[j] + lnqrnd) * (unit - ym[j])
-			lnqllk_js += normlogpdf(lnqbar[j], lnqrsd, lnq_js) * yl[j]
+			qllk_js += normpdf(lnqbar[j], sigq, lnq_js) * yl[j]
 
 			# --- calculate lft_prob ---
 			lft_pr_tmp = leftbh_prob(theta, ln1mlam[j], xbl, dlnq[j])
 			lftpr_s += (lft_pr_tmp * ym[j] + (unit - ym[j]) * (unit - lft_pr_tmp)) * yl[j]
 
 			# --- calculate location prob ---
-			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta, lnqfe)
+			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta)
 
 			# --- location specific utility ---
-			Vj = Vloc(alpha, lnp[j], theta, xbm[j], gambar, delta[j])
-			llks += Vj * yl[j]
-			eVsums += exp(Vj)
+			eVj = exp(Vloc(alpha, lnp[j], theta, xbm[j], gambar, delta[j]))
+			eVjs += eVj * yl[j]
+			eVsums += eVj
 		end
-		llki += llks - log(eVsums) + log(lftpr_s) + lnqllk_js * dage9
+		llki += (eVjs / eVsums) * lftpr_s * (qllk_js * dage9 + unit - dage9)
 
 	end #<-- end of s loop
 
-	return -llki / nsim
+	return -log(llki / nsim)
 end
 
 function unpack_slii_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
@@ -158,9 +157,8 @@ function unpack_slii_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 
 	 bz = parm[(nxt + nxl + nxm + nxf + nxq + 2*nxqj + 4):(nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 3)] #<- observed household char.
 	 sigu = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 4])
-	 rhoq = tanh(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 5])
-	 sigq = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 6])
-	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq)
+	 sigq = exp(parm[nxt + nxl + nxm + nxf + nxq + 2*nxqj + nzr + 5])
+	 return (bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, sigq)
 end
 
 # function tadd(x::AbstractVector{T}) where T <: AbstractFloat
@@ -196,7 +194,7 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, rhoq, sigq =
+	bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif, bz, sigu, sigq =
 		unpack_slii_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
@@ -224,7 +222,7 @@ function mig_leftbh_llk_thread(parm, Delta::AbstractMatrix{T}, YL::AbstractVecto
 			dage9 = dage9vec[i]
 
 			llk_thread += individual_llk(bw, blft, bitr, bt, bl, bm, bf, bq, bqj_mig, bqj_dif,
-										 bz, sigu, rhoq, sigq, lnqrsd, alpha, view(Delta, :, g), xbm, ln1mlam,
+										 bz, sigu, sigq, lnqrsd, alpha, view(Delta, :, g), xbm, ln1mlam,
 										 xbqj_mig, xbqj_dif, dlnq, lnq_mig, lnq_lft, zbr, view(YL, ind_sel),
 								  		 view(YM, ind_sel), view(lnW, ind_sel),  view(lnP, ind_sel),
 								 	 	 view(lnQbar, ind_sel), view(XQJ_mig, :, ind_sel), view(XT, :, i),
