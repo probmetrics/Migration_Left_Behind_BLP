@@ -23,7 +23,6 @@ function mnt_var_zcog(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
 	return zcog_mnt_var
 end
 
-using RCall
 function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 					  XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
 					  XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol},
@@ -33,15 +32,8 @@ function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 	##
 
 	nd = nrow(df)
-
-	@rput nd nboot
-	R"""
-	df <- data.frame(idx = 1:nd)
-	set.seed(20190712)
-	df_boot <- resamplr::balanced_bootstrap(df, nboot)
-	boot_idx_mat <- sapply(df_boot$sample, function(x) x$idx)
-	"""
-	@rget boot_idx_mat
+	boot_idx_mat = [sample(1:nd, nd) for i = 1:nboot]
+	boot_idx_mat = hcat(boot_idx_mat...)
 
 	leftbh_bs_mat = zeros(mnt_len, nboot)
 	for b = 1:nboot
@@ -53,23 +45,16 @@ function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 	return leftbh_bs_mat
 end
 
-using RCall
 function bs_zcog_mnts(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
 					  XQJMnames::AbstractVector{Symbol}, Znames::AbstractVector{Symbol},
 					  XQnames::AbstractVector{Symbol}, mnt_len::Int; nboot::Int = 200)
 	##
 	## Boostrap moments for coginitive development data
 	##
-	nd = nrow(df)
 
-	@rput nd nboot
-	R"""
-	df <- data.frame(idx = 1:nd)
-	set.seed(20190712)
-	df_boot <- resamplr::balanced_bootstrap(df, nboot)
-	boot_idx_mat <- sapply(df_boot$sample, function(x) x$idx)
-	"""
-	@rget boot_idx_mat
+	nd = nrow(df)
+	boot_idx_mat = [sample(1:nd, nd) for i = 1:nboot]
+	boot_idx_mat = hcat(boot_idx_mat...)
 
 	zcog_bsmnt_mat = zeros(mnt_len, nboot)
 	for b = 1:nboot

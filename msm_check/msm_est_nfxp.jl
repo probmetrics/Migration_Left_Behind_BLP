@@ -1,6 +1,6 @@
 
 using Optim, ForwardDiff, LineSearches
-function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
+function msm_est_nfxp(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector{T},
 				 		lnDataShare::AbstractMatrix{T}, alpha::T, lnW::AbstractVector{T},
 						lnP::AbstractVector{T}, XQJ_mig::AbstractMatrix{T},
 						XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
@@ -20,8 +20,7 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 	## function to do the iterative GMM estimation
 	##
 
-	## --- containers for BLP mapping ---
-	# delta_old = deepcopy(delta_init)
+	## --- define GMM optim function ---
 	DT = promote_type(eltype(Delta_init), eltype(initpar))
 	delta_old = deepcopy(Delta_init)
 	delta_fpt = zeros(DT, size(Delta_init))
@@ -32,55 +31,22 @@ function msm_est_iter(initpar, data_mnts::AbstractVector{T}, dwt::AbstractVector
 	## --- define GMM optim function ---
 	coefx_old = copy(initpar)
 	msm_opt = parm -> msm_obj(parm, data_mnts, dwt, alpha, lnW, lnP, XQJ_mig,
-						 	  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft,
-					 	  	  delta_old, dgvec, htvec, dage9vec, wgt, shtwgt,
+						 	  XT, XL, XM, XF, XQ, ZSHK, QSHK, pr_lft,
+					 	  	  delta_old, dgvec, htvec, dage9vec, wgt, sgwgt, shtwgt,
 					 	  	  swgt9, nind, nalt, nsim; xdim = xdim)
 	msmv_old = msm_opt(coefx_old)
 	println("\nInitial GMM object value at fixed deltas = ", msmv_old)
+	
 	algo_bt = BFGS(;alphaguess = LineSearches.InitialStatic(),
 	                linesearch = LineSearches.BackTracking())
 
-	## --- begin the Outer loop ---
-	k = 1
-	iter_conv = one(promote_type(eltype(initpar), eltype(data_mnts)))
-    coefx_new = copy(initpar)
-    while iter_conv > btolerance
-        if k > biter
-            printstyled("\nMaximum Iters Reached, NOT Converged!!!\n", color = :light_red)
-            break
-        end
+	ret_msm = optimize(msm_opt, coefx_old, algo_bt,
+					   Optim.Options(show_trace = true, iterations = 3000);
+					   autodiff = :forward)
 
-        # --- BLP contraction mapping to update delta ---
-        fpt_squarem!(delta_fpt, delta_new, delta_old, delta_q1, delta_q2, lnDataShare,
-					 coefx_old, lnW, lnP, XQJ_mig, XT, XL, XM, XF, XQ, ZSHK,
-					 USHK, wgt, sgwgt, nind, nalt, nsim, dgvec; alpha = alpha,
-					 xdim = xdim, ftolerance = ftolerance, fpiter = fpiter,
-					 mstep = mstep, stepmin_init = stepmin,
-					 stepmax_init = stepmax, alphaversion = alphaversion)
-        copyto!(delta_old, delta_fpt)
-
-        println("\nBegin the $k", "th GMM estimation\n")
-        # --- update coefx_GMM ---
-		# myftol = k <= 10 ? 1.0e-8 : 1.0e-10
-		# myxtol = k <= 10 ? 1.0e-8 : 1.0e-10
-		ret_msm = optimize(msm_opt, coefx_old, algo_bt,
-		               	  Optim.Options(show_trace = true, iterations = 2000);
-						  autodiff = :forward)
-        copyto!(coefx_new, Optim.minimizer(ret_msm))
-		msmv_new = Optim.minimum(ret_msm)
-
-        coefconv = mreldif(coefx_new, coefx_old)
-        println("The $k", "th iteration, relative coefx difference = ", "$coefconv\n")
-		copyto!(coefx_old, coefx_new)
-
-		msmconv = abs(msmv_new - msmv_old) / sqrt(abs(1.0 + msmv_old))
-		println("The $k", "th iteration, msm objective difference = ", "$msmconv\n")
-		msmv_old = msmv_new
-
-		iter_conv = min(coefconv, msmconv)
-        k += 1
-    end
+	coefx = Optim.minimizer(ret_msm)
+	msmv = Optim.minimum(ret_msm)
 
 	## TODO: calculate correct var-vcov matrix
-	return(coefx_new, delta_fpt, msmv_old)
+	return(coefx, delta_fpt, msmv)
 end
