@@ -12,8 +12,8 @@ function qfun(lnw, ln1mlam, xbq, xbqj_mig, xbqj_dif, bw, blft, bitr)
     # b2 = blft < 0
     # b1 = bw > 0
     # b3 = bitr < 0
-    dlnq = blft + bitr * lnw - bw * ln1mlam + xbq + xbqj_dif
-	lnq_mig = bw * lnw + bw * ln1mlam + xbqj_mig
+    dlnq = blft + bitr * lnw - bw * ln1mlam + xbqj_dif
+	lnq_mig = bw * lnw + bw * ln1mlam + xbq + xbqj_mig
     return (dlnq, lnq_mig)
 end
 
