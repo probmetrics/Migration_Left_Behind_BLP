@@ -125,7 +125,7 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	##
 
 	bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif, sigu =
-				unpack_parm(parm, XT, XL, XM, XF, XQ, XQJ_mig, xdim)
+				unpack_parm(parm, XT, XL, XM, XF, XQJ_mig, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
 	ngrp = maximum(dgvec)
