@@ -18,23 +18,23 @@ function qfun(lnw, ln1mlam, xbq, xbqj_mig, xbqj_dif, bw, blft, bitr)
 end
 
 using StatsFuns:logaddexp
-function gamfun(lnw, dlnq, lnq_mig, xbl, ln1mlam, theta)
+function gamfun(lnw, dlnq, lnq_mig, xbl, ln1mlam, theta, psi)
 	unit = oneunit(theta)
     Vlft = (unit - theta) * dlnq - xbl
-    Vmig = theta * ln1mlam
-    gambar = logaddexp(Vlft, Vmig) + theta * lnw + (unit - theta) * lnq_mig
+    Vmig = psi * theta * ln1mlam
+    gambar = logaddexp(Vlft, Vmig) + psi * theta * lnw + (unit - theta) * lnq_mig
     return gambar
 end
 
 using StatsFuns:logistic
-function leftbh_prob(theta, ln1mlam, xbl, dlnq)
-    dVlft = - theta * ln1mlam - xbl + (oneunit(theta) - theta) * dlnq
+function leftbh_prob(theta, ln1mlam, xbl, dlnq, psi)
+    dVlft = - psi * theta * ln1mlam - xbl + (oneunit(theta) - theta) * dlnq
     lftpr = logistic(dVlft)
     return lftpr
 end
 
-function Vloc(alpha, lnp, theta, xbm, gambar, delta)
-    Vloc = gambar - alpha * theta * lnp - xbm + delta
+function Vloc(alpha, lnp, theta, xbm, gambar, delta, psi)
+    Vloc = gambar - psi * alpha * theta * lnp - xbm + delta
     return Vloc
 end
 

@@ -6,7 +6,7 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
 					  XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					  USHK::AbstractVector{T}, wgt::AbstractVector{T},
 					  sgwgt::AbstractVector{T}, nind::Int, nalt::Int, nsim::Int,
-					  dgvec::AbstractVector{Int}; alpha::T = 0.12, xdim::Int = 1,
+					  dgvec::AbstractVector{Int}; xdim::Int = 1,
 					  btolerance::T = 1.0e-6, biter::Int = 500, ftolerance::T = 1.0e-14,
 					  fpiter::Int = 2000, mstep::T = 4.0, stepmin::T = 1.0,	stepmax::T = 1.0,
 					  alphaversion::Int = 3) where T <: AbstractFloat
@@ -26,7 +26,7 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
 	coefx_old = copy(initpar)
 	llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, delta_old, YL, YM, lnW, lnP,
 											XbQ, XQJ_mig, XT, XL, XM, XF,
-											USHK, wgt, nind, nalt, nsim, dgvec, alpha, xdim)
+											USHK, wgt, nind, nalt, nsim, dgvec, xdim)
 	llkv_old = llk_opt_thread(coefx_old)
 	println("\nInitial value of likelihood function = ", llkv_old)
 	algo_bt = BFGS(;alphaguess = LineSearches.InitialStatic(),
@@ -44,9 +44,9 @@ function msl_est_iter(initpar, lnDataShare::AbstractMatrix{T}, Delta_init::Abstr
 
         # --- BLP contraction mapping to update delta ---
         fpt_squarem!(delta_fpt, delta_new, delta_old, delta_q1, delta_q2, lnDataShare,
-					 coefx_old, lnW, lnP, XbQ, XQJ_mig, XT, XL, XM, XF, 
+					 coefx_old, lnW, lnP, XbQ, XQJ_mig, XT, XL, XM, XF,
 					 USHK, wgt, sgwgt, nind, nalt, nsim, dgvec;
-					 alpha = alpha, xdim = xdim, ftolerance = ftolerance,
+					 xdim = xdim, ftolerance = ftolerance,
 					 fpiter = fpiter, mstep = mstep, stepmin_init = stepmin,
 					 stepmax_init = stepmax, alphaversion = alphaversion)
         copyto!(delta_old, delta_fpt)

@@ -30,17 +30,17 @@ function data_prepare(df::AbstractDataFrame, XQJMnames::AbstractVector{Symbol},
     Delta_init = lnDataShare .- lnDataShare[1, :]'
 
     # --- household preference ---
-    XT = [ones(nind) convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XTnames])]
+    XT = convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XTnames])
 
     # --- migration cost ---
     XM = convert(Array{Float64, 2}, df[:, XMnames])
 
     # --- left-behind utility loss ---
-    XL = convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XLnames])
+    XL = [ones(nind) convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XLnames])]
 
     # --- fixed cost ---
     # NOTE: the most critical part of the model!!
-    XF = [ones(ndt) convert(Array{Float64, 2}, df[:, XFnames]) lnW]
+    XF = [ones(ndt) convert(Array{Float64, 2}, df[:, XFnames])]
 
     # --- cognitive ability ---
     # TODO: how to incorporate regional eduation quality?

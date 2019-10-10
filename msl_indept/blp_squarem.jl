@@ -6,7 +6,7 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
 					  XL::AbstractMatrix{T}, XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
  					  USHK::AbstractVector{T}, wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
 					  nind::Int, nalt::Int, nsim::Int, dgvec::AbstractVector{Int};
-					  alpha::T = 0.12, xdim::Int = 1, ftolerance::T = 1e-14,
+					  xdim::Int = 1, ftolerance::T = 1e-14,
 					  fpiter::Int = 500, mstep::T = 4.0, stepmin_init::T = 1.0,
 					  stepmax_init::T = 1.0, alphaversion::Int = 3) where T <: AbstractFloat
     # default values:
@@ -29,14 +29,14 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
 		## --- begin the SquareM method ---
 		update_delta!(delta_new, delta_old, lnDataShare, parm, lnW, lnP, XbQ, XQJ_mig,
 					  XT, XL, XM, XF, USHK, wgt, sgwgt, nind,
-					  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+					  nalt, nsim, dgvec; xdim = xdim)
 		@. delta_q1 = delta_new - delta_old
 		trace_print(j)
 		j += 1
 
 		update_delta!(delta_fpt, delta_new, lnDataShare, parm, lnW, lnP, XbQ, XQJ_mig,
 					  XT, XL, XM, XF, USHK, wgt, sgwgt, nind,
-					  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+					  nalt, nsim, dgvec; xdim = xdim)
 		@. delta_q2 = delta_fpt - delta_new
 		trace_print(j)
 		j += 1
@@ -46,7 +46,7 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
 		@. delta_new = delta_old + 2.0 * step_alpha * delta_q1 + step_alpha^2 * (delta_q2 - delta_q1)
 		update_delta!(delta_fpt, delta_new, lnDataShare, parm, lnW, lnP, XbQ, XQJ_mig,
 					  XT, XL, XM, XF, USHK, wgt, sgwgt, nind,
-					  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+					  nalt, nsim, dgvec; xdim = xdim)
 		trace_print(j)
 		j += 1
 
@@ -55,12 +55,12 @@ function fpt_squarem!(delta_fpt::AbstractMatrix{T}, delta_new::AbstractMatrix{T}
 		    @warn "Missing values generated during SquareM mapping, switch to BLP mapping\n"
 		    update_delta!(delta_new, delta_old, lnDataShare, parm, lnW, lnP, XbQ, XQJ_mig,
 						  XT, XL, XM, XF, USHK, wgt, sgwgt, nind,
-						  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+						  nalt, nsim, dgvec; xdim = xdim)
 			j += 1
 			trace_print(j)
             update_delta!(delta_fpt, delta_new, lnDataShare, parm, lnW, lnP, XbQ, XQJ_mig,
 						  XT, XL, XM, XF, USHK, wgt, sgwgt, nind,
-						  nalt, nsim, dgvec; alpha = alpha, xdim = xdim)
+						  nalt, nsim, dgvec; xdim = xdim)
             j += 1
 			trace_print(j)
 		end
@@ -90,12 +90,11 @@ function update_delta!(delta_new::AbstractMatrix{T}, delta_old::AbstractMatrix{T
 					   XM::AbstractMatrix{T}, XF::AbstractMatrix{T},
 					   USHK::AbstractVector{T}, wgt::AbstractVector{T},
 					   sgwgt::AbstractVector{T}, nind::Int, nalt::Int, nsim::Int,
-					   dgvec::AbstractVector{Int}; alpha::T = 0.12,
-					   xdim::Int = 1) where T <: AbstractFloat
+					   dgvec::AbstractVector{Int}; xdim::Int = 1) where T <: AbstractFloat
 
     locpr_thread!(delta_new, parm, delta_old, lnW, lnP, XbQ, XQJ_mig, XT,
 				  XL, XM, XF, USHK, wgt, sgwgt, nind, nalt,
-				  nsim, dgvec; alpha = alpha, xdim = xdim)
+				  nsim, dgvec; xdim = xdim)
 	broadcast!(log, delta_new, delta_new)
     @fastmath @inbounds @simd for i = eachindex(delta_new)
         delta_new[i] = delta_old[i] + lnDataShare[i] - delta_new[i]
@@ -109,7 +108,7 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 					   XF::AbstractMatrix{T}, USHK::AbstractVector{T},
 					   wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
 					   nind::Int, nalt::Int, nsim::Int, dgvec::AbstractVector{Int};
-					   alpha::T = 0.12, xdim::Int = 1) where T <: AbstractFloat
+					   xdim::Int = 1) where T <: AbstractFloat
 	##
 	## Delta:   nalt x g Matrix
 	## XT: 		nt x N Matrix
@@ -124,7 +123,7 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif, sigu =
+	bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif, sigu, alpha, psi =
 				unpack_parm(parm, XT, XL, XM, XF, XQJ_mig, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
@@ -153,7 +152,7 @@ function locpr_thread!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 			xbq = XbQ[i]
 
 			loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif,
-						  sigu, alpha, view(Delta, :, g), xbm, ln1mlam, xbqj_mig,
+						  sigu, psi, alpha, view(Delta, :, g), xbm, ln1mlam, xbqj_mig,
 						  xbqj_dif, dlnq, lnq_mig, xbq, view(lnW, ind_sel),
 						  view(lnP, ind_sel), view(XQJ_mig, :, ind_sel), view(XT, :, i),
 						  view(XL, :, i), view(XM, :, ind_sel), view(XF, :, ind_sel),
@@ -172,7 +171,7 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 						XF::AbstractMatrix{T}, USHK::AbstractVector{T},
 						wgt::AbstractVector{T}, sgwgt::AbstractVector{T},
 						nind::Int, nalt::Int, nsim::Int, dgvec::AbstractVector{Int};
-						alpha::T = 0.12, xdim::Int = 1) where T <: AbstractFloat
+						xdim::Int = 1) where T <: AbstractFloat
 	##
 	## Delta:   nalt x g Matrix
 	## XT: 		nt x N Matrix
@@ -187,7 +186,7 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 	## dgvec:	N Vector
 	##
 
-	bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif, sigu =
+	bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif, sigu, alpha, psi =
 		unpack_parm(parm, XT, XL, XM, XF, XQJ_mig, ZSHK, xdim)
 
 	TT = promote_type(eltype(parm), eltype(Delta))
@@ -208,7 +207,7 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 		g = view(dgvec, i)
 		xbq = XbQ[i]
 
-		loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif, sigu, alpha,
+		loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif, sigu, psi, alpha,
 					  view(Delta, :, g), xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, xbq,
 					  view(lnW, ind_sel), view(lnP, ind_sel), view(XQJ_mig, :, ind_sel),
 					  view(XT, :, i), view(XL, :, i),
@@ -220,7 +219,7 @@ function locpr_serial!(mktshare, parm, Delta::AbstractMatrix{T}, lnW::AbstractVe
 end
 
 using StatsFuns:logistic, log1pexp, softmax!
-function loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif, sigu,
+function loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif, sigu, psi,
 						alpha, delta, xbm, ln1mlam, xbqj_mig, xbqj_dif, dlnq, lnq_mig, xbq, lnw,
 						lnp, xqj_mig, xt, xl, xm, xf, ushk, nalt, nsim)
 	##
@@ -257,10 +256,10 @@ function loc_prob_ind!(loc_pri, bw, blft, bitr, bt, bl, bm, bf, bqj_mig, bqj_dif
 		theta = logistic(xbt + sigu * urnd)
 		for j = 1:nalt
 			# calculate location prob
-			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta)
+			gambar = gamfun(lnw[j], dlnq[j], lnq_mig[j], xbl, ln1mlam[j], theta, psi)
 
 			# --- location specific utility ---
-			loc_pr_s[j] = Vloc(alpha, lnp[j], theta, xbm[j], gambar, delta[j])
+			loc_pr_s[j] = Vloc(alpha, lnp[j], theta, xbm[j], gambar, delta[j], psi)
 		end
 		softmax!(loc_pr_s, loc_pr_s)
 		loc_pri .+= loc_pr_s
