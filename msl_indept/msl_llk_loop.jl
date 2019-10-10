@@ -132,7 +132,7 @@ function unpack_parm(parm, XT::AbstractMatrix{T}, XL::AbstractMatrix{T},
 
 	 sigu = exp(parm[nxt + nxl + nxm + nxf + 1])
 	 # alpha = logistic(parm[nxt + nxl + nxm + nxf + 2])
-	 # psi = exp(parm[nxt + nxl + nxm + nxf + 2*nxqj + 3])
+	 # psi = 7.0 * logistic(parm[nxt + nxl + nxm + nxf + 2])
 	 alpha = 0.12
 	 psi = 1.0
 
