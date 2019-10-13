@@ -34,7 +34,7 @@ XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
 XFnames = [:htreat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
 		   :nchild_lnhp]
 XLnames = [:cfemale, :nchild, :cagey, :cageysq]
-XQnames = [:cfemale, :cagey, :nchild, :highsch_f, :highsch_m]
+XQnames = [:cfemale, :cagey, :nchild, :highsch_f, :highsch_m, :age_f]
 XQJMnames = [:tstu2_ratio, :sschool_per]
 
 lnDataShare, Delta_init, lnW, lnP,
@@ -43,6 +43,7 @@ XT, XM, XL, XF, XQ, pr_lft,	pr_lft_alt,
 nalt, nind, dgvec, htvec, dage9vec =
 	data_prepare(LeftbhData, :lnhinc_alts, XQJMnames, XTnames,
 	             XLnames, XFnames, XMnames, XQnames; trs = true)
+XFW = vcat(XF, lnW')
 
 ##
 ## 2. get random draw
@@ -56,19 +57,14 @@ ndraw = nind * nsim
 alpha = 0.12
 
 # bootstrap observed preference vars.
-DF_master = LeftbhData[LeftbhData[:chosen] .== 1,
-            [:year, :ID, :cline, :child_leftbh,
-            :highsch_f, :highsch_m]]
-rename!(DF_master, :child_leftbh => :leftbh)
+# DF_master = LeftbhData[LeftbhData[:chosen] .== 1,
+#             [:year, :ID, :cline, :child_leftbh,
+#             :highsch_f, :highsch_m]]
+# rename!(DF_master, :child_leftbh => :leftbh)
 zshk_vars = [:caring_study, :college_expect]
-match_vars = [:highsch_f, :highsch_m]
 
 Random.seed!(20190610);
-ZSHK = map(1:nrow(DF_master)) do i
-    bdf = filter(df -> df[match_vars] == DF_master[i, match_vars], MigBootData)
-    Matrix{Float64}(boot_df(bdf, zshk_vars; nboot = nsim))
-end
-ZSHK = vcat(ZSHK...)
+ZSHK = Matrix{Float64}(boot_df(MigBootData, zshk_vars; nboot = ndraw))
 ZSHK = copy(ZSHK')
 
 USHK = draw_shock(ndraw; dims = 2) # draw iid standard normal random shock
@@ -100,11 +96,11 @@ dwt = 1.0 ./ vcat(var_leftbh_mnt, var_zcog_mnt)
 ## 4. search for initial values
 ##
 
-# lftvar = [XTnames; XFnames; XLnames; XQJMnames]
-# lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))) + lnhinc_alts)
-# lft_fit = glm(lft_form, view(LeftbhData, YL .== 1, :),
-# 			  Binomial(), LogitLink(), wts = wgt)
-# lft_init = coef(lft_fit)
+lftvar = [XTnames; XFnames; XLnames; XQJMnames]
+lft_form = @eval @formula(child_leftbh ~ $(Meta.parse(join(lftvar, " + "))) + lnhinc_alts)
+lft_fit = glm(lft_form, view(LeftbhData, YL .== 1, :),
+			  Binomial(), LogitLink(), wts = wgt)
+lft_init = coef(lft_fit)
 
 initset = load("$DTDIR/msl_indept_results/msl_indept_est_20190807.jld2")
 initpar = initset["coefx"]
@@ -120,28 +116,35 @@ lnq_init = coef(lnq_fit)
 ## 5. Evaluate the moment conditions
 ##
 
-nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
+nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XFW, 1) + 3 +
 		size(XQ, 1) + 2*size(XQJ_mig, 1) + size(ZSHK, 1) + 1
 
-# xt_init = [3.0; lft_init[2:size(XT, 1)]]
-# xf_init = lft_init[(size(XT, 1) + 1):(size(XT, 1) + size(XF, 1) - 1)]
-# xl_init = lft_init[(size(XT, 1) + size(XF, 1)):(size(XT, 1) + size(XF, 1) + size(XL, 1) - 1)]
+xt_init = lft_init[2:size(XT, 1)]
+xl_init = lft_init[(size(XT, 1) + size(XF, 1) + 1):(size(XT, 1) + size(XF, 1) + size(XL, 1) - 1)]
+xf_init = [0.0; lft_init[(size(XT, 1) + 2):(size(XT, 1) + size(XF, 1))]; -0.2]
+
 # xqj_dif_init = lft_init[(end-size(XQJ_mig, 1)):(end-1)]
-# xm_init = zeros(size(XM, 1))
+xm_init = initpar[11:25]
 # xq_init = zeros(size(XQ, 1))
 
-xq_init = [-0.7; lnq_init[4:end-5]]
+xq_init = [lnq_init[1]; lnq_init[4:end-5]]
 xqj_mig_init = lnq_init[end-4:end-3]
 xqj_dif_init = lnq_init[end-1:end]
 bw = 0.19
 blft = -0.124
 bitr = -0.197
-initval = [initpar[1:31]; initpar[33]; blft; bw; bitr; xq_init; xqj_mig_init; xqj_dif_init;
-			initpar[end-2:end-1]; -1.5]
-# initval = [xt_init; xl_init; xm_init; 0.0; xf_init; blft; bw; bitr;
-# 		   xq_init; zeros(length(xqj_dif_init)); xqj_dif_init; zeros(2);
-# 		   -2.5; 0.0; -1.0]
+# initval = [initpar[1:4]; initpar[6:10]; 0.0; initpar[11:31]; initpar[33];
+# 			blft; bw; bitr; xq_init; xqj_mig_init; xqj_dif_init;
+# 			initpar[end-2:end-1]; -1.0]
+initval = [xt_init; 4.2; -xl_init; xm_init; xf_init; -0.2; blft; bw; bitr;
+		   xq_init; zeros(length(xqj_dif_init)); xqj_dif_init; zeros(2);
+		   -1.0]
 
+parm_names = [Symbol.("XT_" .* string.(XTnames)); :XL_cons; Symbol.("XL_" .* string.(XLnames));
+			  Symbol.("XM_" .* string.(XMnames)); :XF_cons; Symbol.("XF_" .* string.(XFnames));
+			  :XF_lnW; :blft; :bw; :bitr; :XQ_cons; Symbol.("XQ_" .* string.(XQnames));
+			  Symbol.("XQJ_Mig_" .* string.(XQJMnames)); Symbol.("XQJ_Dif_" .* string.(XQJMnames));
+			  zshk_vars; :lnsigq]
 
 # --- iterative maximization ---
 # msm_est_iter(initval, data_mnts, dwt, lnDataShare, alpha, lnW, lnP,
@@ -152,13 +155,13 @@ initval = [initpar[1:31]; initpar[33]; blft; bw; bitr; xq_init; xqj_mig_init; xq
 # --- evaluate moment conditions ---
 # 6s
 @time mnt_serial = get_moments(initval, alpha, lnW, lnP, XQJ_mig, XT, XL,
-				  		XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft, initdel,
+				  		XM, XFW, XQ, ZSHK, USHK, QSHK, pr_lft, initdel,
 				  		dgvec, htvec, dage9vec, wgt, shtwgt, swgt9, nind,
 						nalt, nsim; xdim = 1)
 
 # 1.2s for 8 threads
 @time mnt_thread = get_moments_thread(initval, alpha, lnW, lnP, XQJ_mig,
-						XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft,
+						XT, XL, XM, XFW, XQ, ZSHK, USHK, QSHK, pr_lft,
 				  		initdel, dgvec, htvec, dage9vec, wgt, shtwgt, swgt9,
 				  		nind, nalt, nsim; xdim = 1)
 

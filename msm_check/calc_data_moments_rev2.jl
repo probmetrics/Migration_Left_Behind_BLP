@@ -124,7 +124,7 @@ function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symb
 					(Matrix{Float64}(view(df, leftbh .== 1, XQJMnames)) .* wgtvec_lft) / sum(wgtvec_lft)
 	XT_XQJ_lft_mnt = vec(XT_XQJ_lft_mnt)
 
-	leftbh_mnt = vcat(pr_lft_alt, XM_mnt, XF_mig_mnt, XF_lft_mnt, lnW_mig_mnt, lnW_lft_mnt,
+	leftbh_mnt = vcat(pr_lft_alt, XM_mnt, XF_mig_mnt, lnW_mig_mnt, XF_lft_mnt, lnW_lft_mnt,
 					  XL_lft_mnt, XT_lft_mnt, XT_lnW_mnt, XF_XT_mnt, XT_XQJ_mig_mnt,
 					  XT_XQJ_lft_mnt)
  	return leftbh_mnt
@@ -220,7 +220,7 @@ function dtmnts_nobs_leftbh(df::AbstractDataFrame, lnWname::Symbol,
 	XT_XQJ_lft_mnt_n = swt_lft * ones(nXT * nXQJ)
 
 
-	leftbh_mnt_n = vcat(pr_lft_alt_n, XM_mnt_n, XF_mig_mnt_n, XF_lft_mnt_n, lnW_mig_mnt_n,
+	leftbh_mnt_n = vcat(pr_lft_alt_n, XM_mnt_n, XF_mig_mnt_n, lnW_mig_mnt_n, XF_lft_mnt_n, 
 					  	lnW_lft_mnt_n, XL_lft_mnt_n, XT_lft_mnt_n, XT_lnW_mnt_n,
 						XF_XT_mnt_n, XT_XQJ_mig_mnt_n, XT_XQJ_lft_mnt_n)
  	return leftbh_mnt_n

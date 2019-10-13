@@ -34,7 +34,7 @@ XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
 XFnames = [:htreat, :migscore_fcvx_city, :lnhprice, :migscore_treat, :lnhp_treat,
 		   :lnmnw_city, :nchild_lnhp]
 XLnames = [:cfemale, :nchild, :cagey, :cageysq]
-XQnames = [:cfemale, :cagey, :nchild, :highsch_f, :highsch_m]
+XQnames = [:cfemale, :cagey, :nchild, :highsch_f, :highsch_m, :age_f]
 XQJMnames = [:tstu2_ratio, :sschool_per]
 
 lnDataShare, Delta_init, lnW, lnP,
@@ -43,6 +43,7 @@ XT, XM, XL, XF, XQ, pr_lft,	pr_lft_alt,
 nalt, nind, dgvec, htvec, dage9vec =
 	data_prepare(LeftbhData, :lnhinc_alts, XQJMnames, XTnames,
 	             XLnames, XFnames, XMnames, XQnames; trs = true)
+XFW = vcat(XF, lnW')
 
 ##
 ## 2. get random draw
@@ -56,19 +57,20 @@ ndraw = nind * nsim
 alpha = 0.12
 
 # bootstrap observed preference vars.
-DF_master = LeftbhData[LeftbhData[:chosen] .== 1,
-            [:year, :ID, :cline, :child_leftbh,
-            :highsch_f, :highsch_m]]
-rename!(DF_master, :child_leftbh => :leftbh)
+# DF_master = LeftbhData[LeftbhData[:chosen] .== 1,
+#             [:year, :ID, :cline, :child_leftbh,
+#             :highsch_f, :highsch_m]]
+# rename!(DF_master, :child_leftbh => :leftbh)
 zshk_vars = [:caring_study, :college_expect]
-match_vars = [:leftbh, :highsch_f, :highsch_m]
+# match_vars = [:leftbh, :highsch_f, :highsch_m]
 
 Random.seed!(20190610);
-ZSHK = map(1:nrow(DF_master)) do i
-    bdf = filter(df -> df[match_vars] == DF_master[i, match_vars], MigBootData)
-    Matrix{Float64}(boot_df(bdf, zshk_vars; nboot = nsim))
-end
-ZSHK = vcat(ZSHK...)
+ZSHK = Matrix{Float64}(boot_df(MigBootData, zshk_vars; nboot = ndraw))
+# ZSHK = map(1:nrow(DF_master)) do i
+#     bdf = filter(df -> df[match_vars] == DF_master[i, match_vars], MigBootData)
+#     Matrix{Float64}(boot_df(bdf, zshk_vars; nboot = nsim))
+# end
+# ZSHK = vcat(ZSHK...)
 ZSHK = copy(ZSHK')
 
 USHK = draw_shock(ndraw; dims = 2) # draw iid standard normal random shock
@@ -129,7 +131,7 @@ nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
 # xm_init = zeros(size(XM, 1))
 # xq_init = zeros(size(XQ, 1))
 
-xq_init = [0.0; lnq_init[4:end-5]]
+xq_init = [-2.5; lnq_init[4:end-5]]
 xqj_mig_init = lnq_init[end-4:end-3]
 xqj_dif_init = lnq_init[end-1:end]
 bw = 0.19
@@ -162,7 +164,7 @@ initval = [initpar[1:33]; blft; bw; bitr; xq_init; xqj_mig_init; xqj_dif_init;
 				  		nind, nalt, nsim; xdim = 1)
 
 dwt_iden = ones(length(data_mnts_all))
-@time msm_obj(initval, data_mnts_all, dwt_iden, alpha, lnW, lnP, XQJ_mig,
+@time msm_obj(initval, data_mnts_all, dwt, alpha, lnW, lnP, XQJ_mig,
 			  XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, pr_lft,
 			  initdel, dgvec, htvec, dage9vec, wgt, shtwgt, swgt9,
 			  nind, nalt, nsim; xdim = 1)

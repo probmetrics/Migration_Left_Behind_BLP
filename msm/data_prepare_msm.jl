@@ -54,7 +54,7 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMnames::Abstrac
 
     # --- household preference ---
     # XTnames = [:highsch_f, :highsch_m, :age_f, :age_m, :han]
-    XT = [ones(nind) convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XTnames])]
+    XT = convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XTnames])
 
     # --- migration cost ---
     # XMnames = names(df)[(end - 17):(end - 4)]
@@ -62,7 +62,7 @@ function data_prepare(df::AbstractDataFrame, lnWname::Symbol, XQJMnames::Abstrac
 
     # --- left-behind utility loss ---
     # XLnames = [:cfemale, :nchild, :cagey, :cageysq]
-    XL = convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XLnames])
+    XL = [ones(nind) convert(Array{Float64, 2}, df[df[:, :chosen] .== 1, XLnames])]
 
     # --- fixed cost ---
     # NOTE: the most critical part of the model!!

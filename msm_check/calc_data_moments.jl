@@ -23,7 +23,6 @@ function mnt_var_zcog(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
 	return zcog_mnt_var
 end
 
-using RCall
 function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 					  XTnames::AbstractVector{Symbol}, XLnames::AbstractVector{Symbol},
 					  XFnames::AbstractVector{Symbol}, XMnames::AbstractVector{Symbol},
@@ -33,15 +32,8 @@ function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 	##
 
 	nd = nrow(df)
-
-	@rput nd nboot
-	R"""
-	df <- data.frame(idx = 1:nd)
-	set.seed(20190712)
-	df_boot <- resamplr::balanced_bootstrap(df, nboot)
-	boot_idx_mat <- sapply(df_boot$sample, function(x) x$idx)
-	"""
-	@rget boot_idx_mat
+	boot_idx_mat = [sample(1:nd, nd) for i = 1:nboot]
+	boot_idx_mat = hcat(boot_idx_mat...)
 
 	leftbh_bs_mat = zeros(mnt_len, nboot)
 	for b = 1:nboot
@@ -53,23 +45,16 @@ function bs_leftbh_mnts(df::AbstractDataFrame, lnWname::Symbol, cage9::Symbol,
 	return leftbh_bs_mat
 end
 
-using RCall
 function bs_zcog_mnts(df::AbstractDataFrame, lnWname::Symbol, lnQname::Symbol,
 					  XQJMnames::AbstractVector{Symbol}, Znames::AbstractVector{Symbol},
 					  XQnames::AbstractVector{Symbol}, mnt_len::Int; nboot::Int = 200)
 	##
 	## Boostrap moments for coginitive development data
 	##
-	nd = nrow(df)
 
-	@rput nd nboot
-	R"""
-	df <- data.frame(idx = 1:nd)
-	set.seed(20190712)
-	df_boot <- resamplr::balanced_bootstrap(df, nboot)
-	boot_idx_mat <- sapply(df_boot$sample, function(x) x$idx)
-	"""
-	@rget boot_idx_mat
+	nd = nrow(df)
+	boot_idx_mat = [sample(1:nd, nd) for i = 1:nboot]
+	boot_idx_mat = hcat(boot_idx_mat...)
 
 	zcog_bsmnt_mat = zeros(mnt_len, nboot)
 	for b = 1:nboot
@@ -123,7 +108,7 @@ function data_moments_leftbh(df::AbstractDataFrame, lnWname::Symbol, cage9::Symb
 	# --- (7) data moments for XT'lnW and E(XF XT' | k =0) ---
 	XT_lnW_mnt = colwise(x -> mean(x .* lnW, weights(wgtvec)), view(df, XTnames))
 
-	leftbh_mnt = vcat(pr_lft_alt, XM_mnt, XF_mig_mnt, XF_lft_mnt, lnW_mig_mnt, lnW_lft_mnt,
+	leftbh_mnt = vcat(pr_lft_alt, XM_mnt, XF_mig_mnt, lnW_mig_mnt, XF_lft_mnt, lnW_lft_mnt,
 					  XL_lft_mnt, XT_lft_mnt, XT_lnW_mnt)
  	return leftbh_mnt
 end
@@ -210,7 +195,7 @@ function dtmnts_nobs_leftbh(df::AbstractDataFrame, lnWname::Symbol,
 	# --- (7) data moments for XT'lnW and XF XT' ---
 	XT_lnW_mnt_n = swt * ones(nXT)
 
-	leftbh_mnt_n = vcat(pr_lft_alt_n, XM_mnt_n, XF_mig_mnt_n, XF_lft_mnt_n, lnW_mig_mnt_n,
+	leftbh_mnt_n = vcat(pr_lft_alt_n, XM_mnt_n, XF_mig_mnt_n, lnW_mig_mnt_n, XF_lft_mnt_n, 
 					  	lnW_lft_mnt_n, XL_lft_mnt_n, XT_lft_mnt_n, XT_lnW_mnt_n)
  	return leftbh_mnt_n
 end

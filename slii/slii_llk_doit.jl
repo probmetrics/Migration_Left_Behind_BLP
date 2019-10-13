@@ -105,7 +105,7 @@ initdel = initset["deltas"]
 ##
 
 nparm = size(XT, 1) + size(XL, 1) + size(XM, 1) + size(XF, 1) + 3 +
-		size(XQ, 1) + 2*size(XQJ_mig, 1) + size(ZSHK, 1) + 3
+		size(XQ, 1) + 2*size(XQJ_mig, 1) + size(ZSHK, 1) + 2
 
 # xt_init = [3.0; lft_init[2:size(XT, 1)]]
 # xf_init = lft_init[(size(XT, 1) + 1):(size(XT, 1) + size(XF, 1) - 1)]
@@ -119,23 +119,23 @@ bw = 0.19
 blft = -0.124
 bitr = -0.197
 initval = [initpar[1:31]; initpar[33]; blft; bw; bitr; xq_init; XQJMparm;
-			initpar[end-2:end-1]; -2.5; 0.0; log(lnqrsd)]
+			initpar[end-2:end-1]; -2.5; log(lnqrsd)]
 # initval = [xt_init; xl_init; xm_init; 0.0; xf_init; blft; bw; bitr;
 # 		   xq_init; zeros(length(xqj_dif_init)); xqj_dif_init; zeros(2);
 # 		   -2.5; 0.0; -1.0]
 
 # --- iterative maximization ---
-ret_msl = slii_est_iter(initval, lnDataShare, Delta_init, YL, YM, lnW, lnP,
+ret_msl = slii_est_iter(initval, lnDataShare, initdel, YL, YM, lnW, lnP,
 			 			lnQbar, XQJ_mig, XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK,
 						wgt, sgwgt, nind, nalt, nsim, dgvec, dage9vec; biter = 1)
 
 # --- evaluate log-likelihood ---
-@time mig_leftbh_llk(initval, Delta_init, YL, YM, lnW, lnP, lnQbar, XQJ_mig,
+@time mig_leftbh_llk(initval, initdel, YL, YM, lnW, lnP, lnQbar, XQJ_mig,
 			 		 XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, wgt, nind, nalt,
 			   		 nsim, dgvec, dage9vec, lnqrsd, 0.12, 1)
 # 444022.5091; 5.1s
 
-@time mig_leftbh_llk_thread(initval, Delta_init, YL, YM, lnW, lnP, lnQbar,
+@time mig_leftbh_llk_thread(initval, initdel, YL, YM, lnW, lnP, lnQbar,
 			 		 	XQJ_mig, XT, XL, XM, XF, XQ, ZSHK, USHK, QSHK, wgt,
 			   		 	nind, nalt, nsim, dgvec, dage9vec, lnqrsd, 0.12, 1)
 # 444022.5091; 0.9s for 8 threads
@@ -148,7 +148,7 @@ using Optim, ForwardDiff
 # @time llk_opt(initval)
 # @time gr = ForwardDiff.gradient(llk_opt, initval)
 
-llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, Delta_init, YL, YM, lnW, lnP,
+llk_opt_thread = parm -> mig_leftbh_llk_thread(parm, initdel, YL, YM, lnW, lnP,
 										lnQbar, XQJ_mig, XT, XL, XM, XF, XQ, ZSHK,
 										USHK, QSHK, wgt, nind, nalt, nsim, dgvec,
 										dage9vec, lnqrsd, 0.12, 1)

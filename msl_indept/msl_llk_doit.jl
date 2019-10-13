@@ -77,8 +77,8 @@ XbQ = XQ' * [lnq_init[1]; lnq_init[4:end-5]]
 ## 4. Evaluate the likelihood
 ##
 
-initset1007 = load("$DTDIR/msl_indept_results/msl_indept_new_20191007.jld2")
-initset1009 = load("$DTDIR/msl_indept_results/msl_indept_new_20191009.jld2")
+# initset1007 = load("$DTDIR/msl_indept_results/msl_indept_new_20191007.jld2")
+# initset1009 = load("$DTDIR/msl_indept_results/msl_indept_new_20191009.jld2")
 
 initset = load("$DTDIR/msl_indept_results/msl_indept_est_20190807.jld2")
 initpar = initset["coefx"]
@@ -97,7 +97,7 @@ xf_init = [0.0; lft_init[(size(XT, 1) + 2):(size(XT, 1) + size(XF, 1))]; -0.2]
 # blft = -0.148
 # bitr = -0.167
 
-initval = [initset1007["coefx"][1:end-2]; -0.4; -1.2]
+# initval = [initset1007["coefx"][1:end-2]; -0.4; -1.2]
 initval = [xt_init; 4.2; -xl_init; xm_init; xf_init; -1.2]
 
 parm_names = [Symbol.("XT_" .* string.(XTnames)); :XL_cons; Symbol.("XL_" .* string.(XLnames));
@@ -107,7 +107,7 @@ parm_names = [Symbol.("XT_" .* string.(XTnames)); :XL_cons; Symbol.("XL_" .* str
 # --- iterative maximization ---
 ret_msl = msl_est_iter(initval, lnDataShare, initdel, YL, YM, lnW, lnP, XbQ,
 			 			XQJ_mig, XT, XL, XM, XFW, USHK, wgt, sgwgt, nind,
-			 			nalt, nsim, dgvec; biter = 3)
+			 			nalt, nsim, dgvec; biter = 1)
 
 # --- evaluate log-likelihood ---
 @time mig_leftbh_llk(initval, initdel, YL, YM, lnW, lnP, XbQ, XQJ_mig,
